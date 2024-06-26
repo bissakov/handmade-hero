@@ -30,6 +30,65 @@
 // Alikhan Bissakov 2024
 
 #include <windows.h>
+#include <cstdint>
+
+#define internal static
+#define local_persist static
+#define global_variable static
+
+global_variable bool running;
+global_variable BITMAPINFO bitmap_info;
+global_variable void *bitmap_memory;
+
+global_variable int bitmap_width;
+global_variable int bitmap_height;
+
+struct Dimensions {
+  int width;
+  int height;
+};
+
+Dimensions CalculateDimensions(const RECT *rect) {
+  int width = rect->right - rect->left;
+  int height = rect->bottom - rect->top;
+  return {width, height};
+}
+
+internal void ResizeDIBSection(RECT *rect) {
+  if (bitmap_memory) {
+    VirtualFree(bitmap_memory, 0, MEM_RELEASE);
+  }
+
+  Dimensions dimensions = CalculateDimensions(rect);
+  int width = dimensions.width;
+  int height = dimensions.height;
+
+  bitmap_width = width;
+  bitmap_height = height;
+
+  bitmap_info.bmiHeader.biSize = sizeof(bitmap_info.bmiHeader);
+  bitmap_info.bmiHeader.biWidth = bitmap_width;
+  bitmap_info.bmiHeader.biHeight = bitmap_height;
+  bitmap_info.bmiHeader.biPlanes = 1;
+  bitmap_info.bmiHeader.biBitCount = 32;
+  bitmap_info.bmiHeader.biCompression = BI_RGB;
+
+  int bytes_per_pixel = 4;
+  int bitmap_memory_size = bitmap_width * bitmap_height * bytes_per_pixel;
+  // VirtualAlloc(LPVOID lpAddress, SIZE_T dwSize, DWORD flAllocationType,
+  //              DWORD flProtect)
+  bitmap_memory =
+      VirtualAlloc(0, bitmap_memory_size, MEM_COMMIT, PAGE_READWRITE);
+}
+
+internal void UpdateClientWindow(HDC device_context, RECT *rect) {
+  Dimensions dimensions = CalculateDimensions(rect);
+  int window_width = dimensions.width;
+  int window_height = dimensions.height;
+  StretchDIBits(device_context, 0, 0, bitmap_width, bitmap_height, 0, 0,
+                window_width, window_height, bitmap_memory, &bitmap_info,
+                DIB_RGB_COLORS, SRCCOPY);
+}
 
 LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
                            LPARAM l_param) {
@@ -37,24 +96,25 @@ LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
 
   switch (message) {
     case WM_ACTIVATEAPP: {
-      OutputDebugStringW(L"WM_ACTIVATEAPP\n");
       break;
     }
 
     case WM_SIZE: {
-      OutputDebugStringW(L"WM_SIZE\n");
+      RECT client_rect;
+      GetClientRect(window, &client_rect);
+
+      ResizeDIBSection(&client_rect);
+
       break;
     }
 
     case WM_DESTROY: {
-      OutputDebugStringW(L"WM_DESTROY\n");
+      running = false;
       break;
     }
 
     case WM_CLOSE: {
-      OutputDebugStringW(L"WM_CLOSE\n");
-
-      PostQuitMessage(0);
+      running = false;
       break;
     }
 
@@ -62,11 +122,7 @@ LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
       PAINTSTRUCT paint;
       HDC device_context = BeginPaint(window, &paint);
 
-      int x = paint.rcPaint.left;
-      int y = paint.rcPaint.top;
-      LONG width = paint.rcPaint.right - paint.rcPaint.left;
-      LONG height = paint.rcPaint.bottom - paint.rcPaint.top;
-      PatBlt(device_context, x, y, width, height, WHITENESS);
+      UpdateClientWindow(device_context, &paint.rcPaint);
 
       EndPaint(window, &paint);
 
@@ -86,7 +142,6 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
                      LPSTR cmd_line, int show_code) {
   WNDCLASSW window_class = {};
 
-  window_class.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
   window_class.lpfnWndProc = MainWindowCallback;
   window_class.hInstance = instance;
   window_class.lpszClassName = L"HandmadeHeroWindowClass";
@@ -96,7 +151,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   }
 
   wchar_t window_name[] = L"Handmade Hero";
-  unsigned long window_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+  uint32_t window_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
 
   HWND window = CreateWindowExW(
       0, window_class.lpszClassName, window_name, window_style, CW_USEDEFAULT,
@@ -107,11 +162,12 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   }
 
   MSG message;
-  while (1) {
+  running = true;
+  while (running) {
     BOOL message_result = GetMessageW(&message, 0, 0, 0);
 
-    if (message_result <= 0) {
-      break;
+    if (message_result == -1) {
+      return -1;
     }
 
     TranslateMessage(&message);
