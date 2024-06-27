@@ -6,6 +6,7 @@
 // See the end of file for license information
 
 #include <windows.h>
+
 #include <cstdint>
 
 #define internal static
@@ -18,6 +19,7 @@ global_variable void *bitmap_memory;
 
 global_variable int bitmap_width;
 global_variable int bitmap_height;
+global_variable int bytes_per_pixel = 4;
 
 struct Dimensions {
   int width;
@@ -28,6 +30,21 @@ Dimensions CalculateDimensions(const RECT *rect) {
   int width = rect->right - rect->left;
   int height = rect->bottom - rect->top;
   return {width, height};
+}
+
+internal void render(int x_offset, int y_offset) {
+  int pitch = bitmap_width * bytes_per_pixel;
+  uint8_t *row = reinterpret_cast<uint8_t *>(bitmap_memory);
+  for (int y = 0; y < bitmap_height; ++y) {
+    uint32_t *pixel = reinterpret_cast<uint32_t *>(row);
+    for (int x = 0; x < bitmap_width; ++x) {
+      uint8_t red = x + x_offset;
+      uint8_t green = 0;
+      uint8_t blue = y + y_offset;
+      *pixel++ = (red << 16) | (green << 8) | blue;
+    }
+    row += pitch;
+  }
 }
 
 internal void ResizeDIBSection(RECT *rect) {
@@ -44,17 +61,16 @@ internal void ResizeDIBSection(RECT *rect) {
 
   bitmap_info.bmiHeader.biSize = sizeof(bitmap_info.bmiHeader);
   bitmap_info.bmiHeader.biWidth = bitmap_width;
-  bitmap_info.bmiHeader.biHeight = bitmap_height;
+  bitmap_info.bmiHeader.biHeight = bitmap_height * -1;
   bitmap_info.bmiHeader.biPlanes = 1;
   bitmap_info.bmiHeader.biBitCount = 32;
   bitmap_info.bmiHeader.biCompression = BI_RGB;
 
-  int bytes_per_pixel = 4;
   int bitmap_memory_size = bitmap_width * bitmap_height * bytes_per_pixel;
-  // VirtualAlloc(LPVOID lpAddress, SIZE_T dwSize, DWORD flAllocationType,
-  //              DWORD flProtect)
   bitmap_memory =
       VirtualAlloc(0, bitmap_memory_size, MEM_COMMIT, PAGE_READWRITE);
+
+  render(128, 0);
 }
 
 internal void UpdateClientWindow(HDC device_context, RECT *rect) {
@@ -137,17 +153,35 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     return 1;
   }
 
+  int x_offset = 0;
+  int y_offset = 0;
+
   MSG message;
   running = true;
   while (running) {
-    BOOL message_result = GetMessageW(&message, 0, 0, 0);
-
-    if (message_result == -1) {
-      return -1;
+    while (PeekMessageW(&message, 0, 0, 0, PM_REMOVE)) {
+      if (message.message == WM_QUIT) {
+        running = false;
+        break;
+      }
+      TranslateMessage(&message);
+      DispatchMessageW(&message);
     }
 
-    TranslateMessage(&message);
-    DispatchMessageW(&message);
+    render(x_offset, y_offset);
+
+    HDC device_context = GetDC(window);
+    RECT client_rect;
+    GetClientRect(window, &client_rect);
+    Dimensions dimensions = CalculateDimensions(&client_rect);
+    int window_width = dimensions.width;
+    int window_height = dimensions.height;
+
+    UpdateClientWindow(device_context, &client_rect);
+    ReleaseDC(window, device_context);
+
+    ++y_offset;
+    ++x_offset;
   }
 
   return 0;
@@ -174,3 +208,4 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
 // warranty of any kind, either express or implied, including without
 // limitation any implied warranties of condition, uninterrupted use,
 // merchantability, fitness for a particular purpose, or
+// non-infringement.
