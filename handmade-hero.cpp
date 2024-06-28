@@ -15,30 +15,30 @@
 #define global_variable static
 
 global_variable bool RUNNING = true;
-global_variable int DEFAULT_WIDTH = 1920;
-global_variable int DEFAULT_HEIGHT = 1080;
+global_variable uint16_t DEFAULT_WIDTH = 1920;
+global_variable uint16_t DEFAULT_HEIGHT = 1080;
 
 struct Buffer {
   BITMAPINFO info;
   void *memory;
-  int width;
-  int height;
-  int pitch;
-  int bytes_per_pixel;
+  uint16_t width;
+  uint16_t height;
+  uint16_t pitch;
+  uint8_t bytes_per_pixel;
 };
 
 global_variable Buffer buffer;
 
 struct Dimensions {
-  int width;
-  int height;
+  uint16_t width;
+  uint16_t height;
 };
 
 Dimensions GetDimensions(HWND window) {
   RECT rect;
   GetClientRect(window, &rect);
-  int width = rect.right - rect.left;
-  int height = rect.bottom - rect.top;
+  uint16_t width = rect.right - rect.left;
+  uint16_t height = rect.bottom - rect.top;
   return {width, height};
 }
 
@@ -83,7 +83,7 @@ internal void ResizeDIBSection(Buffer *buffer, int width, int height) {
 }
 
 internal void DisplayBuffer(HDC device_context, int window_x, int window_y,
-                            int window_width, int window_height,
+                            uint16_t window_width, uint16_t window_height,
                             Buffer *buffer) {
   StretchDIBits(device_context, window_x, window_y, window_width, window_height,
                 0, 0, buffer->width, buffer->height, buffer->memory,
@@ -95,9 +95,9 @@ LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
   LRESULT result = 0;
 
   switch (message) {
-      // case WM_SIZE: {
-      //   break;
-      // }
+    case WM_SIZE: {
+      break;
+    }
 
     case WM_ACTIVATEAPP: {
       break;
@@ -116,10 +116,10 @@ LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
     case WM_PAINT: {
       PAINTSTRUCT paint;
       HDC device_context = BeginPaint(window, &paint);
-      int x = paint.rcPaint.left;
-      int y = paint.rcPaint.top;
-      int width = paint.rcPaint.right - paint.rcPaint.left;
-      int height = paint.rcPaint.bottom - paint.rcPaint.top;
+      uint16_t x = paint.rcPaint.left;
+      uint16_t y = paint.rcPaint.top;
+      uint16_t width = paint.rcPaint.right - paint.rcPaint.left;
+      uint16_t height = paint.rcPaint.bottom - paint.rcPaint.top;
 
       DisplayBuffer(device_context, x, y, width, height, &buffer);
 
@@ -163,8 +163,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     return 1;
   }
 
-  int x_offset = 0;
-  int y_offset = 0;
+  uint8_t x_offset = 0;
+  uint8_t y_offset = 0;
 
   while (RUNNING) {
     MSG message;
