@@ -7,79 +7,87 @@
 
 #include <windows.h>
 
+#include <cassert>
 #include <cstdint>
 
 #define internal static
 #define local_persist static
 #define global_variable static
 
-global_variable bool running;
-global_variable BITMAPINFO bitmap_info;
-global_variable void *bitmap_memory;
+global_variable bool RUNNING = true;
+global_variable int DEFAULT_WIDTH = 1920;
+global_variable int DEFAULT_HEIGHT = 1080;
 
-global_variable int bitmap_width;
-global_variable int bitmap_height;
-global_variable int bytes_per_pixel = 4;
+struct Buffer {
+  BITMAPINFO info;
+  void *memory;
+  int width;
+  int height;
+  int pitch;
+  int bytes_per_pixel;
+};
+
+global_variable Buffer buffer;
 
 struct Dimensions {
   int width;
   int height;
 };
 
-Dimensions CalculateDimensions(const RECT *rect) {
-  int width = rect->right - rect->left;
-  int height = rect->bottom - rect->top;
+Dimensions GetDimensions(HWND window) {
+  RECT rect;
+  GetClientRect(window, &rect);
+  int width = rect.right - rect.left;
+  int height = rect.bottom - rect.top;
   return {width, height};
 }
 
-internal void render(int x_offset, int y_offset) {
-  int pitch = bitmap_width * bytes_per_pixel;
-  uint8_t *row = reinterpret_cast<uint8_t *>(bitmap_memory);
-  for (int y = 0; y < bitmap_height; ++y) {
+internal void render(Buffer *buffer, int x_offset, int y_offset) {
+  uint8_t *row = reinterpret_cast<uint8_t *>(buffer->memory);
+  for (int y = 0; y < buffer->height; ++y) {
     uint32_t *pixel = reinterpret_cast<uint32_t *>(row);
-    for (int x = 0; x < bitmap_width; ++x) {
+    for (int x = 0; x < buffer->width; ++x) {
       uint8_t red = x + x_offset;
       uint8_t green = 0;
       uint8_t blue = y + y_offset;
       *pixel++ = (red << 16) | (green << 8) | blue;
     }
-    row += pitch;
+    row += buffer->pitch;
   }
 }
 
-internal void ResizeDIBSection(RECT *rect) {
-  if (bitmap_memory) {
-    VirtualFree(bitmap_memory, 0, MEM_RELEASE);
+internal void ResizeDIBSection(Buffer *buffer, int width, int height) {
+  if (buffer->memory) {
+    VirtualFree(buffer->memory, 0, MEM_RELEASE);
   }
 
-  Dimensions dimensions = CalculateDimensions(rect);
-  int width = dimensions.width;
-  int height = dimensions.height;
+  buffer->width = width;
+  buffer->height = height;
+  buffer->bytes_per_pixel = 4;
 
-  bitmap_width = width;
-  bitmap_height = height;
+  assert(buffer->width && buffer->height && buffer->bytes_per_pixel);
 
-  bitmap_info.bmiHeader.biSize = sizeof(bitmap_info.bmiHeader);
-  bitmap_info.bmiHeader.biWidth = bitmap_width;
-  bitmap_info.bmiHeader.biHeight = bitmap_height * -1;
-  bitmap_info.bmiHeader.biPlanes = 1;
-  bitmap_info.bmiHeader.biBitCount = 32;
-  bitmap_info.bmiHeader.biCompression = BI_RGB;
+  buffer->info.bmiHeader.biSize = sizeof(buffer->info.bmiHeader);
+  buffer->info.bmiHeader.biWidth = buffer->width;
+  buffer->info.bmiHeader.biHeight = buffer->height * -1;
+  buffer->info.bmiHeader.biPlanes = 1;
+  buffer->info.bmiHeader.biBitCount = 32;
+  buffer->info.bmiHeader.biCompression = BI_RGB;
 
-  int bitmap_memory_size = bitmap_width * bitmap_height * bytes_per_pixel;
-  bitmap_memory =
+  int bitmap_memory_size =
+      buffer->width * buffer->height * buffer->bytes_per_pixel;
+  buffer->memory =
       VirtualAlloc(0, bitmap_memory_size, MEM_COMMIT, PAGE_READWRITE);
 
-  render(128, 0);
+  buffer->pitch = buffer->width * buffer->bytes_per_pixel;
 }
 
-internal void UpdateClientWindow(HDC device_context, RECT *rect) {
-  Dimensions dimensions = CalculateDimensions(rect);
-  int window_width = dimensions.width;
-  int window_height = dimensions.height;
-  StretchDIBits(device_context, 0, 0, bitmap_width, bitmap_height, 0, 0,
-                window_width, window_height, bitmap_memory, &bitmap_info,
-                DIB_RGB_COLORS, SRCCOPY);
+internal void DisplayBuffer(HDC device_context, int window_x, int window_y,
+                            int window_width, int window_height,
+                            Buffer *buffer) {
+  StretchDIBits(device_context, window_x, window_y, window_width, window_height,
+                0, 0, buffer->width, buffer->height, buffer->memory,
+                &buffer->info, DIB_RGB_COLORS, SRCCOPY);
 }
 
 LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
@@ -87,34 +95,33 @@ LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
   LRESULT result = 0;
 
   switch (message) {
+      // case WM_SIZE: {
+      //   break;
+      // }
+
     case WM_ACTIVATEAPP: {
       break;
     }
 
-    case WM_SIZE: {
-      RECT client_rect;
-      GetClientRect(window, &client_rect);
-
-      ResizeDIBSection(&client_rect);
-
-      break;
-    }
-
     case WM_DESTROY: {
-      running = false;
+      RUNNING = false;
       break;
     }
 
     case WM_CLOSE: {
-      running = false;
+      RUNNING = false;
       break;
     }
 
     case WM_PAINT: {
       PAINTSTRUCT paint;
       HDC device_context = BeginPaint(window, &paint);
+      int x = paint.rcPaint.left;
+      int y = paint.rcPaint.top;
+      int width = paint.rcPaint.right - paint.rcPaint.left;
+      int height = paint.rcPaint.bottom - paint.rcPaint.top;
 
-      UpdateClientWindow(device_context, &paint.rcPaint);
+      DisplayBuffer(device_context, x, y, width, height, &buffer);
 
       EndPaint(window, &paint);
 
@@ -132,8 +139,11 @@ LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
 
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
                      LPSTR cmd_line, int show_code) {
+  ResizeDIBSection(&buffer, DEFAULT_WIDTH, DEFAULT_HEIGHT);
+
   WNDCLASSW window_class = {};
 
+  window_class.style = CS_HREDRAW | CS_VREDRAW;
   window_class.lpfnWndProc = MainWindowCallback;
   window_class.hInstance = instance;
   window_class.lpszClassName = L"HandmadeHeroWindowClass";
@@ -156,28 +166,23 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   int x_offset = 0;
   int y_offset = 0;
 
-  MSG message;
-  running = true;
-  while (running) {
+  while (RUNNING) {
+    MSG message;
     while (PeekMessageW(&message, 0, 0, 0, PM_REMOVE)) {
       if (message.message == WM_QUIT) {
-        running = false;
+        RUNNING = false;
         break;
       }
       TranslateMessage(&message);
       DispatchMessageW(&message);
     }
 
-    render(x_offset, y_offset);
+    render(&buffer, x_offset, y_offset);
 
     HDC device_context = GetDC(window);
-    RECT client_rect;
-    GetClientRect(window, &client_rect);
-    Dimensions dimensions = CalculateDimensions(&client_rect);
-    int window_width = dimensions.width;
-    int window_height = dimensions.height;
-
-    UpdateClientWindow(device_context, &client_rect);
+    Dimensions window_dimensions = GetDimensions(window);
+    DisplayBuffer(device_context, 0, 0, window_dimensions.width,
+                  window_dimensions.height, &buffer);
     ReleaseDC(window, device_context);
 
     ++y_offset;
