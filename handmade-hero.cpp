@@ -10,39 +10,35 @@
 #include <cassert>
 #include <cstdint>
 
-#define internal static
-#define local_persist static
-#define global_variable static
-
-global_variable bool RUNNING = true;
-global_variable uint16_t DEFAULT_WIDTH = 1920;
-global_variable uint16_t DEFAULT_HEIGHT = 1080;
+static bool RUNNING = true;
+static const int DEFAULT_WIDTH = 1920;
+static const int DEFAULT_HEIGHT = 1080;
 
 struct Buffer {
   BITMAPINFO info;
   void *memory;
-  uint16_t width;
-  uint16_t height;
-  uint16_t pitch;
-  uint8_t bytes_per_pixel;
+  int width;
+  int height;
+  int pitch;
+  int bytes_per_pixel;
 };
 
-global_variable Buffer buffer;
+static Buffer buffer;
 
 struct Dimensions {
-  uint16_t width;
-  uint16_t height;
+  int width;
+  int height;
 };
 
-Dimensions GetDimensions(HWND window) {
+static Dimensions GetDimensions(HWND window) {
   RECT rect;
   GetClientRect(window, &rect);
-  uint16_t width = rect.right - rect.left;
-  uint16_t height = rect.bottom - rect.top;
+  int width = rect.right - rect.left;
+  int height = rect.bottom - rect.top;
   return {width, height};
 }
 
-internal void render(Buffer *buffer, int x_offset, int y_offset) {
+static void render(Buffer *buffer, int x_offset, int y_offset) {
   uint8_t *row = reinterpret_cast<uint8_t *>(buffer->memory);
   for (int y = 0; y < buffer->height; ++y) {
     uint32_t *pixel = reinterpret_cast<uint32_t *>(row);
@@ -56,7 +52,7 @@ internal void render(Buffer *buffer, int x_offset, int y_offset) {
   }
 }
 
-internal void ResizeDIBSection(Buffer *buffer, int width, int height) {
+static void ResizeDIBSection(Buffer *buffer, int width, int height) {
   if (buffer->memory) {
     VirtualFree(buffer->memory, 0, MEM_RELEASE);
   }
@@ -82,9 +78,24 @@ internal void ResizeDIBSection(Buffer *buffer, int width, int height) {
   buffer->pitch = buffer->width * buffer->bytes_per_pixel;
 }
 
-internal void DisplayBuffer(HDC device_context, int window_x, int window_y,
-                            uint16_t window_width, uint16_t window_height,
-                            Buffer *buffer) {
+static void DisplayBuffer(HDC device_context, int window_x, int window_y,
+                          uint16_t window_width, uint16_t window_height,
+                          Buffer *buffer) {
+  // float aspect_ratio = static_cast<float>(DEFAULT_WIDTH) / DEFAULT_HEIGHT;
+  // float buffer_width = static_cast<float>(buffer->width);
+  // float buffer_height = static_cast<float>(buffer->height);
+  // if (buffer_width / aspect_ratio <= buffer->height) {
+  //   buffer_height = buffer_width / aspect_ratio;
+  // } else {
+  //   buffer_width = buffer_height * aspect_ratio;
+  // }
+  // float buffer_x = (buffer_width - buffer->width) / 2;
+  // float buffer_y = (buffer_height - buffer->height) / 2;
+  // StretchDIBits(device_context, window_x, window_y, window_width,
+  // window_height,
+  //               buffer_x, buffer_y, buffer_width, buffer_height,
+  //               buffer->memory, &buffer->info, DIB_RGB_COLORS, SRCCOPY);
+
   StretchDIBits(device_context, window_x, window_y, window_width, window_height,
                 0, 0, buffer->width, buffer->height, buffer->memory,
                 &buffer->info, DIB_RGB_COLORS, SRCCOPY);
@@ -116,12 +127,10 @@ LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
     case WM_PAINT: {
       PAINTSTRUCT paint;
       HDC device_context = BeginPaint(window, &paint);
-      uint16_t x = paint.rcPaint.left;
-      uint16_t y = paint.rcPaint.top;
-      uint16_t width = paint.rcPaint.right - paint.rcPaint.left;
-      uint16_t height = paint.rcPaint.bottom - paint.rcPaint.top;
 
-      DisplayBuffer(device_context, x, y, width, height, &buffer);
+      Dimensions window_dimensions = GetDimensions(window);
+      DisplayBuffer(device_context, 0, 0, window_dimensions.width,
+                    window_dimensions.height, &buffer);
 
       EndPaint(window, &paint);
 
@@ -143,7 +152,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
 
   WNDCLASSW window_class = {};
 
-  window_class.style = CS_HREDRAW | CS_VREDRAW;
+  window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
   window_class.lpfnWndProc = MainWindowCallback;
   window_class.hInstance = instance;
   window_class.lpszClassName = L"HandmadeHeroWindowClass";
@@ -163,8 +172,10 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     return 1;
   }
 
-  uint8_t x_offset = 0;
-  uint8_t y_offset = 0;
+  HDC device_context = GetDC(window);
+
+  int x_offset = 0;
+  int y_offset = 0;
 
   while (RUNNING) {
     MSG message;
@@ -179,15 +190,15 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
 
     render(&buffer, x_offset, y_offset);
 
-    HDC device_context = GetDC(window);
     Dimensions window_dimensions = GetDimensions(window);
     DisplayBuffer(device_context, 0, 0, window_dimensions.width,
                   window_dimensions.height, &buffer);
-    ReleaseDC(window, device_context);
 
     ++y_offset;
     ++x_offset;
   }
+
+  ReleaseDC(window, device_context);
 
   return 0;
 }
