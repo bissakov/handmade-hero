@@ -1,6 +1,7 @@
 x64/
 build/
 .vs/
+.cache/
 
 # Prerequisites
 *.d
