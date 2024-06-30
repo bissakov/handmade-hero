@@ -6,6 +6,8 @@
 // See the end of file for license information
 
 #include <windows.h>
+#include <winerror.h>
+#include <xinput.h>
 
 #include <cassert>
 #include <cstdint>
@@ -146,6 +148,46 @@ LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
   return result;
 }
 
+void handle_gamepad(int *x_offset, int *y_offset) {
+  XINPUT_VIBRATION vibration;
+  for (int controller_idx = 0; controller_idx < XUSER_MAX_COUNT;
+       ++controller_idx) {
+    XINPUT_STATE controller_state;
+    if (XInputGetState(controller_idx, &controller_state) == ERROR_SUCCESS) {
+      vibration.wLeftMotorSpeed = 0;
+      vibration.wRightMotorSpeed = 0;
+
+      XINPUT_GAMEPAD *gamepad = &controller_state.Gamepad;
+
+      bool up = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_UP;
+      bool down = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
+      bool left = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
+      bool right = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
+
+      if (up) {
+        *y_offset += 10;
+        vibration.wLeftMotorSpeed = 65535;
+      }
+      if (down) {
+        *y_offset -= 10;
+        vibration.wLeftMotorSpeed = 65535;
+      }
+      if (left) {
+        *x_offset += 10;
+        vibration.wLeftMotorSpeed = 65535;
+      }
+      if (right) {
+        *x_offset -= 10;
+        vibration.wLeftMotorSpeed = 65535;
+      }
+
+      XInputSetState(controller_idx, &vibration);
+    } else {
+      // TODO(bissakov): Controller is not available
+    }
+  }
+}
+
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
                      LPSTR cmd_line, int show_code) {
   ResizeDIBSection(&buffer, DEFAULT_WIDTH, DEFAULT_HEIGHT);
@@ -188,14 +230,13 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
       DispatchMessageW(&message);
     }
 
+    handle_gamepad(&x_offset, &y_offset);
+
     render(&buffer, x_offset, y_offset);
 
     Dimensions window_dimensions = GetDimensions(window);
     DisplayBuffer(device_context, 0, 0, window_dimensions.width,
                   window_dimensions.height, &buffer);
-
-    ++y_offset;
-    ++x_offset;
   }
 
   ReleaseDC(window, device_context);
