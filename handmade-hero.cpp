@@ -139,6 +139,65 @@ static LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
       break;
     }
 
+    case WM_SYSKEYDOWN: {
+      uint32_t vk_code = w_param;
+
+      bool alt_key_down = (l_param & (1 << 29)) != 0;
+      if ((vk_code == VK_F4) && alt_key_down) {
+        RUNNING = false;
+        break;
+      }
+
+      break;
+    }
+
+    case WM_SYSKEYUP: {
+      break;
+    }
+
+    case WM_KEYDOWN: {
+      break;
+    }
+
+    case WM_KEYUP: {
+      uint32_t vk_code = w_param;
+      bool was_key_down = (l_param & (1 << 30)) != 0;
+      bool is_key_down = (l_param & (1 << 31)) == 0;
+
+      if (was_key_down == is_key_down) {
+        break;
+      }
+
+      if (vk_code == VK_UP) {
+        OutputDebugStringW(L"VK_UP: ");
+        if (is_key_down) {
+          OutputDebugStringW(L"is_key_down ");
+        }
+        if (was_key_down) {
+          OutputDebugStringW(L"was_key_down");
+        }
+        OutputDebugStringA("\n");
+      }
+
+      if (vk_code == VK_DOWN) {
+        OutputDebugStringW(L"VK_UP: ");
+        if (is_key_down) {
+          OutputDebugStringW(L"is_key_down ");
+        }
+        if (was_key_down) {
+          OutputDebugStringW(L"was_key_down");
+        }
+        OutputDebugStringA("\n");
+      }
+
+      if (vk_code == VK_ESCAPE) {
+        RUNNING = false;
+        break;
+      }
+
+      break;
+    }
+
     default: {
       result = DefWindowProcW(window, message, w_param, l_param);
       break;
