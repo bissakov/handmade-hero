@@ -48,8 +48,6 @@ static bool InitDirectSound(HWND window, int samples_per_second,
   HMODULE direct_sound_lib = LoadLibraryW(L"dsound.dll");
   if (!direct_sound_lib) {
     return false;
-  } else {
-    OutputDebugStringW(L"dsound.dll loaded\n");
   }
 
   DirectSoundCreateT *DyDirectSoundCreate =
@@ -62,14 +60,10 @@ static bool InitDirectSound(HWND window, int samples_per_second,
   if (!DyDirectSoundCreate ||
       !SUCCEEDED(DyDirectSoundCreate(0, &direct_sound, 0))) {
     return false;
-  } else {
-    OutputDebugStringW(L"DirectSoundCreate success\n");
   }
 
   if (!SUCCEEDED(direct_sound->SetCooperativeLevel(window, DSSCL_PRIORITY))) {
     return false;
-  } else {
-    OutputDebugStringW(L"SetCooperativeLevel success\n");
   }
 
   LPDIRECTSOUNDBUFFER primary_buffer;
@@ -81,8 +75,6 @@ static bool InitDirectSound(HWND window, int samples_per_second,
     if (!SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_desc,
                                                    &primary_buffer, 0))) {
       return false;
-    } else {
-      OutputDebugStringW(L"CreateSoundBuffer primary_buffer success\n");
     }
   }
 
@@ -99,8 +91,6 @@ static bool InitDirectSound(HWND window, int samples_per_second,
 
   if (!SUCCEEDED(primary_buffer->SetFormat(&wave_format))) {
     return false;
-  } else {
-    OutputDebugStringW(L"SetFormat success\n");
   }
 
   LPDIRECTSOUNDBUFFER secondary_buffer;
@@ -113,8 +103,6 @@ static bool InitDirectSound(HWND window, int samples_per_second,
     if (!SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_desc,
                                                    &secondary_buffer, 0))) {
       return false;
-    } else {
-      OutputDebugStringW(L"CreateSoundBuffer secondary_buffer success\n");
     }
   }
 
