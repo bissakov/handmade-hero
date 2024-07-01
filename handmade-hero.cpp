@@ -74,8 +74,8 @@ static void ResizeDIBSection(Buffer *buffer, int width, int height) {
 
   int bitmap_memory_size =
       buffer->width * buffer->height * buffer->bytes_per_pixel;
-  buffer->memory =
-      VirtualAlloc(0, bitmap_memory_size, MEM_COMMIT, PAGE_READWRITE);
+  buffer->memory = VirtualAlloc(0, bitmap_memory_size, MEM_RESERVE | MEM_COMMIT,
+                                PAGE_READWRITE);
 
   buffer->pitch = buffer->width * buffer->bytes_per_pixel;
 }
