@@ -379,13 +379,12 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   int bytes_per_sample = sizeof(int16_t) * 2;
   int secondary_buffer_size = samples_per_second * bytes_per_sample;
   uint16_t tone_volume = 1000;
+  bool sound_is_playing = false;
 
   if (!InitDirectSound(window, samples_per_second, secondary_buffer_size)) {
     OutputDebugStringW(L"DirectSound initialization failed\n");
     return 1;
   }
-
-  SOUND_BUFFER->Play(0, 0, DSBPLAY_LOOPING);
 
   while (RUNNING) {
     MSG message;
@@ -454,6 +453,14 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
                                                                  : -tone_volume;
       *sample_out++ = sample_value;
       *sample_out++ = sample_value;
+    }
+
+    if (!sound_is_playing) {
+      if (!SUCCEEDED(SOUND_BUFFER->Play(0, 0, DSBPLAY_LOOPING))) {
+        OutputDebugStringW(L"Failed to play secondary buffer\n");
+        return 1;
+      }
+      sound_is_playing = true;
     }
 
     if (!SUCCEEDED(SOUND_BUFFER->Unlock(region1, region1_size, region2,
