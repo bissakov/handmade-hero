@@ -455,7 +455,12 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
       *sample_out++ = sample_value;
       *sample_out++ = sample_value;
     }
-    SOUND_BUFFER->Unlock(region1, region1_size, region2, region2_size);
+
+    if (!SUCCEEDED(SOUND_BUFFER->Unlock(region1, region1_size, region2,
+                                        region2_size))) {
+      OutputDebugStringW(L"Failed to unlock secondary buffer\n");
+      return 1;
+    }
 
     Dimensions window_dimensions = GetDimensions(window);
     DisplayBuffer(device_context, 0, 0, window_dimensions.width,
