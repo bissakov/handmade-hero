@@ -373,12 +373,20 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   int y_offset = 0;
 
   int samples_per_second = 48000;
+  int tone_hz = 256;
+  uint32_t running_sample_idx = 0;
+  int half_square_wave_period = samples_per_second / (2 * tone_hz);
   int bytes_per_sample = sizeof(int16_t) * 2;
   int secondary_buffer_size = samples_per_second * bytes_per_sample;
+  uint16_t tone_volume = 1000;
+
   if (!InitDirectSound(window, samples_per_second, secondary_buffer_size)) {
     OutputDebugStringW(L"DirectSound initialization failed\n");
     return 1;
   }
+
+  SOUND_BUFFER->Play(0, 0, DSBPLAY_LOOPING);
+
   while (RUNNING) {
     MSG message;
     while (PeekMessageW(&message, 0, 0, 0, PM_REMOVE)) {
@@ -393,6 +401,61 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     HandleGamepad(&x_offset, &y_offset);
 
     Render(&buffer, x_offset, y_offset);
+
+    DWORD play_cursor;
+    DWORD write_cursor;
+    if (!SUCCEEDED(
+            SOUND_BUFFER->GetCurrentPosition(&play_cursor, &write_cursor))) {
+      OutputDebugStringW(
+          L"Failed to get current position of secondary buffer\n");
+      return 1;
+    }
+
+    DWORD byte_to_lock =
+        running_sample_idx * bytes_per_sample % secondary_buffer_size;
+    DWORD bytes_to_write;
+
+    if (play_cursor == byte_to_lock) {
+      bytes_to_write = secondary_buffer_size;
+    } else if (byte_to_lock > play_cursor) {
+      bytes_to_write = secondary_buffer_size - byte_to_lock;
+      bytes_to_write += play_cursor;
+    } else {
+      bytes_to_write = play_cursor - byte_to_lock;
+    }
+
+    void *region1;
+    void *region2;
+    DWORD region1_size;
+    DWORD region2_size;
+
+    if (!SUCCEEDED(SOUND_BUFFER->Lock(byte_to_lock, bytes_to_write, &region1,
+                                      &region1_size, &region2, &region2_size,
+                                      0))) {
+      OutputDebugStringW(L"Failed to lock secondary buffer\n");
+      return 1;
+    }
+
+    DWORD region1_sample_count = region1_size / bytes_per_sample;
+    int16_t *sample_out = reinterpret_cast<int16_t *>(region1);
+    for (int i = 0; i < region1_sample_count; ++i) {
+      int16_t sample_value =
+          ((running_sample_idx++ / half_square_wave_period) % 2) ? tone_volume
+                                                                 : -tone_volume;
+      *sample_out++ = sample_value;
+      *sample_out++ = sample_value;
+    }
+
+    DWORD region2_sample_count = region2_size / bytes_per_sample;
+    sample_out = reinterpret_cast<int16_t *>(region2);
+    for (int i = 0; i < region2_sample_count; ++i) {
+      int16_t sample_value =
+          ((running_sample_idx++ / half_square_wave_period) % 2) ? tone_volume
+                                                                 : -tone_volume;
+      *sample_out++ = sample_value;
+      *sample_out++ = sample_value;
+    }
+    SOUND_BUFFER->Unlock(region1, region1_size, region2, region2_size);
 
     Dimensions window_dimensions = GetDimensions(window);
     DisplayBuffer(device_context, 0, 0, window_dimensions.width,
