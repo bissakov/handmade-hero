@@ -40,6 +40,8 @@ bool InitXInput() {
   return true;
 }
 
+static IDirectSoundBuffer *SOUND_BUFFER;
+
 typedef HRESULT WINAPI DirectSoundCreateT(LPGUID lpGuid, LPDIRECTSOUND *ppDS,
                                           LPUNKNOWN pUnkOuter);
 
@@ -66,7 +68,7 @@ static bool InitDirectSound(HWND window, int samples_per_second,
     return false;
   }
 
-  LPDIRECTSOUNDBUFFER primary_buffer;
+  IDirectSoundBuffer *primary_buffer;
   {
     DSBUFFERDESC buffer_desc = {};
     buffer_desc.dwSize = sizeof(buffer_desc);
@@ -93,15 +95,14 @@ static bool InitDirectSound(HWND window, int samples_per_second,
     return false;
   }
 
-  LPDIRECTSOUNDBUFFER secondary_buffer;
   {
     DSBUFFERDESC buffer_desc = {};
     buffer_desc.dwSize = sizeof(buffer_desc);
     buffer_desc.dwFlags = 0;
     buffer_desc.dwBufferBytes = buffer_size;
     buffer_desc.lpwfxFormat = &wave_format;
-    if (!SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_desc,
-                                                   &secondary_buffer, 0))) {
+    if (!SUCCEEDED(
+            direct_sound->CreateSoundBuffer(&buffer_desc, &SOUND_BUFFER, 0))) {
       return false;
     }
   }
