@@ -149,12 +149,13 @@ static LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
 }
 
 static void HandleGamepad(int *x_offset, int *y_offset) {
+  // XINPUT_VIBRATION vibration;
   for (int controller_idx = 0; controller_idx < XUSER_MAX_COUNT;
        ++controller_idx) {
     XINPUT_STATE controller_state;
-    if (XInputGetState(controller_idx, &controller_state) == ERROR_SUCCESS) {
-      vibration.wLeftMotorSpeed = 0;
-      vibration.wRightMotorSpeed = 0;
+    if (DyXInputGetState(controller_idx, &controller_state) == ERROR_SUCCESS) {
+      // vibration.wLeftMotorSpeed = 0;
+      // vibration.wRightMotorSpeed = 0;
 
       XINPUT_GAMEPAD *gamepad = &controller_state.Gamepad;
 
@@ -165,22 +166,22 @@ static void HandleGamepad(int *x_offset, int *y_offset) {
 
       if (up) {
         *y_offset += 10;
-        vibration.wLeftMotorSpeed = 65535;
       }
       if (down) {
         *y_offset -= 10;
-        vibration.wLeftMotorSpeed = 65535;
       }
       if (left) {
         *x_offset += 10;
-        vibration.wLeftMotorSpeed = 65535;
       }
       if (right) {
         *x_offset -= 10;
-        vibration.wLeftMotorSpeed = 65535;
       }
 
-      XInputSetState(controller_idx, &vibration);
+      *x_offset -= gamepad->sThumbLX / 4096;
+      *y_offset += gamepad->sThumbLY / 4096;
+
+      // vibration.wLeftMotorSpeed = 65535;
+      // DyXInputSetState(controller_idx, &vibration);
     } else {
       // TODO(bissakov): Controller is not available
     }
