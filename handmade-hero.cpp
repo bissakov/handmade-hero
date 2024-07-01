@@ -40,7 +40,7 @@ static Dimensions GetDimensions(HWND window) {
   return {width, height};
 }
 
-static void render(Buffer *buffer, int x_offset, int y_offset) {
+static void Render(Buffer *buffer, int x_offset, int y_offset) {
   uint8_t *row = reinterpret_cast<uint8_t *>(buffer->memory);
   for (int y = 0; y < buffer->height; ++y) {
     uint32_t *pixel = reinterpret_cast<uint32_t *>(row);
@@ -103,8 +103,8 @@ static void DisplayBuffer(HDC device_context, int window_x, int window_y,
                 &buffer->info, DIB_RGB_COLORS, SRCCOPY);
 }
 
-LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
-                           LPARAM l_param) {
+static LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
+                                  LPARAM l_param) {
   LRESULT result = 0;
 
   switch (message) {
@@ -148,8 +148,7 @@ LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
   return result;
 }
 
-void handle_gamepad(int *x_offset, int *y_offset) {
-  XINPUT_VIBRATION vibration;
+static void HandleGamepad(int *x_offset, int *y_offset) {
   for (int controller_idx = 0; controller_idx < XUSER_MAX_COUNT;
        ++controller_idx) {
     XINPUT_STATE controller_state;
@@ -230,9 +229,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
       DispatchMessageW(&message);
     }
 
-    handle_gamepad(&x_offset, &y_offset);
+    HandleGamepad(&x_offset, &y_offset);
 
-    render(&buffer, x_offset, y_offset);
+    Render(&buffer, x_offset, y_offset);
 
     Dimensions window_dimensions = GetDimensions(window);
     DisplayBuffer(device_context, 0, 0, window_dimensions.width,
