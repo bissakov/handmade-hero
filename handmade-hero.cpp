@@ -411,7 +411,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     }
 
     DWORD byte_to_lock =
-        running_sample_idx * bytes_per_sample % secondary_buffer_size;
+        (running_sample_idx * bytes_per_sample) % secondary_buffer_size;
     DWORD bytes_to_write;
 
     if (play_cursor == byte_to_lock) {
