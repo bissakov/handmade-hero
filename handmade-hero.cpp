@@ -5,6 +5,7 @@
 // Handmade Hero License by Casey Muratori
 // See the end of file for license information
 
+#include <dsound.h>
 #include <windows.h>
 #include <winerror.h>
 #include <xinput.h>
@@ -38,6 +39,90 @@ bool InitXInput() {
   if (!DyXInputSetState) {
     FreeLibrary(xinput_lib);
     return false;
+  }
+
+  return true;
+}
+
+typedef HRESULT WINAPI DirectSoundCreateT(LPGUID lpGuid, LPDIRECTSOUND *ppDS,
+                                          LPUNKNOWN pUnkOuter);
+
+static bool InitDirectSound(HWND window, int samples_per_second,
+                            int buffer_size) {
+  HMODULE direct_sound_lib = LoadLibraryW(L"dsound.dll");
+  if (!direct_sound_lib) {
+    return false;
+  } else {
+    OutputDebugStringW(L"dsound.dll loaded\n");
+  }
+
+  DirectSoundCreateT *DyDirectSoundCreate =
+      reinterpret_cast<DirectSoundCreateT *>(
+          GetProcAddress(direct_sound_lib, "DirectSoundCreate"));
+
+  IDirectSound *direct_sound;
+  if (!DyDirectSoundCreate ||
+      !SUCCEEDED(DyDirectSoundCreate(0, &direct_sound, 0))) {
+    FreeLibrary(direct_sound_lib);
+    return false;
+  } else {
+    OutputDebugStringW(L"DirectSoundCreate success\n");
+  }
+
+  if (!SUCCEEDED(direct_sound->SetCooperativeLevel(window, DSSCL_PRIORITY))) {
+    FreeLibrary(direct_sound_lib);
+    return false;
+  } else {
+    OutputDebugStringW(L"SetCooperativeLevel success\n");
+  }
+
+  LPDIRECTSOUNDBUFFER primary_buffer;
+  {
+    DSBUFFERDESC buffer_desc = {};
+    buffer_desc.dwSize = sizeof(buffer_desc);
+    buffer_desc.dwFlags = DSBCAPS_PRIMARYBUFFER;
+
+    if (!SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_desc,
+                                                   &primary_buffer, 0))) {
+      FreeLibrary(direct_sound_lib);
+      return false;
+    } else {
+      OutputDebugStringW(L"CreateSoundBuffer primary_buffer success\n");
+    }
+  }
+
+  WAVEFORMATEX wave_format = {};
+  wave_format.wFormatTag = WAVE_FORMAT_PCM;
+  wave_format.nChannels = 2;
+  wave_format.nSamplesPerSec = samples_per_second;
+  wave_format.wBitsPerSample = 16;
+  wave_format.nBlockAlign =
+      (wave_format.nChannels * wave_format.wBitsPerSample) / 8;
+  wave_format.nAvgBytesPerSec =
+      wave_format.nSamplesPerSec * wave_format.nBlockAlign;
+  wave_format.cbSize = 0;
+
+  if (!SUCCEEDED(primary_buffer->SetFormat(&wave_format))) {
+    FreeLibrary(direct_sound_lib);
+    return false;
+  } else {
+    OutputDebugStringW(L"SetFormat success\n");
+  }
+
+  LPDIRECTSOUNDBUFFER secondary_buffer;
+  {
+    DSBUFFERDESC buffer_desc = {};
+    buffer_desc.dwSize = sizeof(buffer_desc);
+    buffer_desc.dwFlags = 0;
+    buffer_desc.dwBufferBytes = buffer_size;
+    buffer_desc.lpwfxFormat = &wave_format;
+    if (!SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_desc,
+                                                   &secondary_buffer, 0))) {
+      FreeLibrary(direct_sound_lib);
+      return false;
+    } else {
+      OutputDebugStringW(L"CreateSoundBuffer secondary_buffer success\n");
+    }
   }
 
   return true;
@@ -294,6 +379,10 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
       CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, 0);
 
   if (!window) {
+    return 1;
+  }
+
+  if (!InitDirectSound(window, 48000, 48000 * sizeof(int16_t) * 2)) {
     return 1;
   }
 
