@@ -29,18 +29,14 @@ bool InitXInput() {
 
   DyXInputGetState = reinterpret_cast<XInputGetStateT *>(
       GetProcAddress(xinput_lib, "XInputGetState"));
-  if (!DyXInputGetState) {
-    FreeLibrary(xinput_lib);
-    return false;
-  }
-
   DyXInputSetState = reinterpret_cast<XInputSetStateT *>(
       GetProcAddress(xinput_lib, "XInputSetState"));
-  if (!DyXInputSetState) {
-    FreeLibrary(xinput_lib);
+
+  if (!DyXInputGetState || !DyXInputSetState) {
     return false;
   }
 
+  FreeLibrary(xinput_lib);
   return true;
 }
 
@@ -60,17 +56,17 @@ static bool InitDirectSound(HWND window, int samples_per_second,
       reinterpret_cast<DirectSoundCreateT *>(
           GetProcAddress(direct_sound_lib, "DirectSoundCreate"));
 
+  FreeLibrary(direct_sound_lib);
+
   IDirectSound *direct_sound;
   if (!DyDirectSoundCreate ||
       !SUCCEEDED(DyDirectSoundCreate(0, &direct_sound, 0))) {
-    FreeLibrary(direct_sound_lib);
     return false;
   } else {
     OutputDebugStringW(L"DirectSoundCreate success\n");
   }
 
   if (!SUCCEEDED(direct_sound->SetCooperativeLevel(window, DSSCL_PRIORITY))) {
-    FreeLibrary(direct_sound_lib);
     return false;
   } else {
     OutputDebugStringW(L"SetCooperativeLevel success\n");
@@ -84,7 +80,6 @@ static bool InitDirectSound(HWND window, int samples_per_second,
 
     if (!SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_desc,
                                                    &primary_buffer, 0))) {
-      FreeLibrary(direct_sound_lib);
       return false;
     } else {
       OutputDebugStringW(L"CreateSoundBuffer primary_buffer success\n");
@@ -103,7 +98,6 @@ static bool InitDirectSound(HWND window, int samples_per_second,
   wave_format.cbSize = 0;
 
   if (!SUCCEEDED(primary_buffer->SetFormat(&wave_format))) {
-    FreeLibrary(direct_sound_lib);
     return false;
   } else {
     OutputDebugStringW(L"SetFormat success\n");
@@ -118,7 +112,6 @@ static bool InitDirectSound(HWND window, int samples_per_second,
     buffer_desc.lpwfxFormat = &wave_format;
     if (!SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_desc,
                                                    &secondary_buffer, 0))) {
-      FreeLibrary(direct_sound_lib);
       return false;
     } else {
       OutputDebugStringW(L"CreateSoundBuffer secondary_buffer success\n");
