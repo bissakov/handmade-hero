@@ -83,21 +83,6 @@ static void ResizeDIBSection(Buffer *buffer, int width, int height) {
 static void DisplayBuffer(HDC device_context, int window_x, int window_y,
                           uint16_t window_width, uint16_t window_height,
                           Buffer *buffer) {
-  // float aspect_ratio = static_cast<float>(DEFAULT_WIDTH) / DEFAULT_HEIGHT;
-  // float buffer_width = static_cast<float>(buffer->width);
-  // float buffer_height = static_cast<float>(buffer->height);
-  // if (buffer_width / aspect_ratio <= buffer->height) {
-  //   buffer_height = buffer_width / aspect_ratio;
-  // } else {
-  //   buffer_width = buffer_height * aspect_ratio;
-  // }
-  // float buffer_x = (buffer_width - buffer->width) / 2;
-  // float buffer_y = (buffer_height - buffer->height) / 2;
-  // StretchDIBits(device_context, window_x, window_y, window_width,
-  // window_height,
-  //               buffer_x, buffer_y, buffer_width, buffer_height,
-  //               buffer->memory, &buffer->info, DIB_RGB_COLORS, SRCCOPY);
-
   StretchDIBits(device_context, window_x, window_y, window_width, window_height,
                 0, 0, buffer->width, buffer->height, buffer->memory,
                 &buffer->info, DIB_RGB_COLORS, SRCCOPY);
