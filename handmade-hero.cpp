@@ -337,6 +337,7 @@ static void HandleGamepad(int *x_offset, int *y_offset) {
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
                      LPSTR cmd_line, int show_code) {
   if (!InitXInput()) {
+    OutputDebugStringW(L"XInput initialization failed\n");
     return ERROR_DEVICE_NOT_CONNECTED;
   }
 
@@ -350,6 +351,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   window_class.lpszClassName = L"HandmadeHeroWindowClass";
 
   if (!RegisterClassW(&window_class)) {
+    OutputDebugStringW(L"Window class registration failed\n");
     return 1;
   }
 
@@ -361,10 +363,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
       CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, 0);
 
   if (!window) {
-    return 1;
-  }
-
-  if (!InitDirectSound(window, 48000, 48000 * sizeof(int16_t) * 2)) {
+    OutputDebugStringW(L"Window creation failed\n");
     return 1;
   }
 
@@ -373,6 +372,13 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   int x_offset = 0;
   int y_offset = 0;
 
+  int samples_per_second = 48000;
+  int bytes_per_sample = sizeof(int16_t) * 2;
+  int secondary_buffer_size = samples_per_second * bytes_per_sample;
+  if (!InitDirectSound(window, samples_per_second, secondary_buffer_size)) {
+    OutputDebugStringW(L"DirectSound initialization failed\n");
+    return 1;
+  }
   while (RUNNING) {
     MSG message;
     while (PeekMessageW(&message, 0, 0, 0, PM_REMOVE)) {
