@@ -12,6 +12,37 @@
 #include <cassert>
 #include <cstdint>
 
+typedef DWORD WINAPI XInputGetStateT(DWORD controller_idx,
+                                     XINPUT_STATE *controller_state);
+static XInputGetStateT *DyXInputGetState;
+
+typedef DWORD WINAPI XInputSetStateT(DWORD controller_idx,
+                                     XINPUT_VIBRATION *vibration);
+static XInputSetStateT *DyXInputSetState;
+
+bool InitXInput() {
+  HMODULE xinput_lib = LoadLibraryW(L"xinput1_4.dll");
+  if (!xinput_lib) {
+    return false;
+  }
+
+  DyXInputGetState = reinterpret_cast<XInputGetStateT *>(
+      GetProcAddress(xinput_lib, "XInputGetState"));
+  if (!DyXInputGetState) {
+    FreeLibrary(xinput_lib);
+    return false;
+  }
+
+  DyXInputSetState = reinterpret_cast<XInputSetStateT *>(
+      GetProcAddress(xinput_lib, "XInputSetState"));
+  if (!DyXInputSetState) {
+    FreeLibrary(xinput_lib);
+    return false;
+  }
+
+  return true;
+}
+
 static bool RUNNING = true;
 static const int DEFAULT_WIDTH = 1920;
 static const int DEFAULT_HEIGHT = 1080;
@@ -193,6 +224,10 @@ static LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
 }
 
 static void HandleGamepad(int *x_offset, int *y_offset) {
+  if (!DyXInputGetState || !DyXInputSetState) {
+    return;
+  }
+
   // XINPUT_VIBRATION vibration;
   for (int controller_idx = 0; controller_idx < XUSER_MAX_COUNT;
        ++controller_idx) {
@@ -234,6 +269,10 @@ static void HandleGamepad(int *x_offset, int *y_offset) {
 
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
                      LPSTR cmd_line, int show_code) {
+  if (!InitXInput()) {
+    return ERROR_DEVICE_NOT_CONNECTED;
+  }
+
   ResizeDIBSection(&buffer, DEFAULT_WIDTH, DEFAULT_HEIGHT);
 
   WNDCLASSW window_class = {};
