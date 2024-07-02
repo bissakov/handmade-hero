@@ -492,6 +492,13 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     return 1;
   }
 
+  LARGE_INTEGER perf_count_frequency_result;
+  QueryPerformanceFrequency(&perf_count_frequency_result);
+  int64_t perf_count_frequency = perf_count_frequency_result.QuadPart;
+
+  LARGE_INTEGER last_counter;
+  QueryPerformanceCounter(&last_counter);
+
   while (RUNNING) {
     MSG message;
     while (PeekMessageW(&message, 0, 0, 0, PM_REMOVE)) {
@@ -541,6 +548,19 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     Dimensions window_dimensions = GetDimensions(window);
     DisplayBuffer(device_context, 0, 0, window_dimensions.width,
                   window_dimensions.height, &buffer);
+
+    LARGE_INTEGER end_counter;
+    QueryPerformanceCounter(&end_counter);
+
+    uint64_t counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
+    int64_t ms_per_frame = 1000 * counter_elapsed / perf_count_frequency;
+    int64_t fps = 1000 / ms_per_frame;
+
+    wchar_t buffer[256];
+    wsprintfW(buffer, L"ms/frame = %d\tfps = %d\n", ms_per_frame, fps);
+    OutputDebugStringW(buffer);
+
+    last_counter = end_counter;
   }
 
   ReleaseDC(window, device_context);
