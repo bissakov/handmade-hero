@@ -8,7 +8,6 @@
 #include <dsound.h>
 #include <math.h>
 #include <windows.h>
-#include <winerror.h>
 #include <xinput.h>
 
 #include <cassert>
@@ -131,6 +130,18 @@ static Buffer buffer;
 struct Dimensions {
   int width;
   int height;
+};
+
+struct SoundOutput {
+  int samples_per_second = 48000;
+  int tone_hz = 256;
+  uint32_t running_sample_idx = 0;
+  int bytes_per_sample = sizeof(int16_t) * 2;
+  uint16_t tone_volume = 1000;
+  int wave_period = 0;
+  int secondary_buffer_size = 0;
+  float t_sin = 0.0f;
+  int latency_sample_count = 0;
 };
 
 static Dimensions GetDimensions(HWND window) {
@@ -293,7 +304,8 @@ static LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
   return result;
 }
 
-static void HandleGamepad(int *x_offset, int *y_offset) {
+static void HandleGamepad(int *x_offset, int *y_offset,
+                          SoundOutput *sound_output) {
   if (!DyXInputGetState || !DyXInputSetState) {
     return;
   }
@@ -315,9 +327,27 @@ static void HandleGamepad(int *x_offset, int *y_offset) {
 
       if (up) {
         *y_offset += 10;
+        // if (sound_output->tone_volume >= 5000) {
+        //   sound_output->tone_volume = 5000;
+        // } else {
+        //   sound_output->tone_volume += 100;
+        // }
+
+        sound_output->tone_hz = 512;
+        sound_output->wave_period =
+            sound_output->samples_per_second / sound_output->tone_hz;
       }
       if (down) {
         *y_offset -= 10;
+        // if (sound_output->tone_volume <= 100) {
+        //   sound_output->tone_volume = 100;
+        // } else {
+        //   sound_output->tone_volume -= 100;
+        // }
+
+        sound_output->tone_hz = 256;
+        sound_output->wave_period =
+            sound_output->samples_per_second / sound_output->tone_hz;
       }
       if (left) {
         *x_offset += 10;
@@ -329,6 +359,13 @@ static void HandleGamepad(int *x_offset, int *y_offset) {
       *x_offset -= gamepad->sThumbLX / 4096;
       *y_offset += gamepad->sThumbLY / 4096;
 
+      sound_output->tone_hz =
+          512 +
+          static_cast<int>(
+              (256.0f * (static_cast<float>(gamepad->sThumbLX) / 30000.0f)));
+      sound_output->wave_period =
+          sound_output->samples_per_second / sound_output->tone_hz;
+
       // vibration.wLeftMotorSpeed = 65535;
       // DyXInputSetState(controller_idx, &vibration);
     } else {
@@ -337,26 +374,17 @@ static void HandleGamepad(int *x_offset, int *y_offset) {
   }
 }
 
-struct SoundOutput {
-  int samples_per_second;
-  int tone_hz;
-  uint32_t running_sample_idx;
-  int wave_period;
-  int bytes_per_sample;
-  int secondary_buffer_size;
-  uint16_t tone_volume;
-};
-
-static bool FillSoundBuffer(SoundOutput *sound_output, DWORD byte_to_lock,
-                            DWORD bytes_to_write) {
+static bool FillSoundBuffer(SoundOutput *sound_output, uint32_t byte_to_lock,
+                            uint32_t bytes_to_write) {
   void *region1;
   void *region2;
   DWORD region1_size;
   DWORD region2_size;
 
-  if (!SUCCEEDED(SOUND_BUFFER->Lock(byte_to_lock, bytes_to_write, &region1,
-                                    &region1_size, &region2, &region2_size,
-                                    0))) {
+  HRESULT result =
+      SOUND_BUFFER->Lock(byte_to_lock, bytes_to_write, &region1, &region1_size,
+                         &region2, &region2_size, 0);
+  if (!SUCCEEDED(result)) {
     OutputDebugStringW(L"Failed to lock secondary buffer\n");
     return false;
   }
@@ -364,26 +392,32 @@ static bool FillSoundBuffer(SoundOutput *sound_output, DWORD byte_to_lock,
   DWORD region1_sample_count = region1_size / sound_output->bytes_per_sample;
   int16_t *sample_out = reinterpret_cast<int16_t *>(region1);
   for (int i = 0; i < region1_sample_count; ++i) {
-    float t = 2.0f * PI * static_cast<float>(sound_output->running_sample_idx) /
-              static_cast<float>(sound_output->wave_period);
-    float sin_value = sinf(t);
+    float sin_value = sinf(sound_output->t_sin);
     int16_t sample_value = (int16_t)(sin_value * sound_output->tone_volume);
     *sample_out++ = sample_value;
     *sample_out++ = sample_value;
 
+    sound_output->t_sin +=
+        2.0f * PI / static_cast<float>(sound_output->wave_period);
+    // if (sound_output->t_sin > 2.0f * PI) {
+    //   sound_output->t_sin -= 2.0f * PI;
+    // }
     ++sound_output->running_sample_idx;
   }
 
   DWORD region2_sample_count = region2_size / sound_output->bytes_per_sample;
   sample_out = reinterpret_cast<int16_t *>(region2);
   for (int i = 0; i < region2_sample_count; ++i) {
-    float t = 2.0f * PI * static_cast<float>(sound_output->running_sample_idx) /
-              static_cast<float>(sound_output->wave_period);
-    float sin_value = sinf(t);
+    float sin_value = sinf(sound_output->t_sin);
     int16_t sample_value = (int16_t)(sin_value * sound_output->tone_volume);
     *sample_out++ = sample_value;
     *sample_out++ = sample_value;
 
+    sound_output->t_sin +=
+        2.0f * PI / static_cast<float>(sound_output->wave_period);
+    // if (sound_output->t_sin > 2.0f * PI) {
+    //   sound_output->t_sin -= 2.0f * PI;
+    // }
     ++sound_output->running_sample_idx;
   }
 
@@ -434,16 +468,12 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   int x_offset = 0;
   int y_offset = 0;
 
-  SoundOutput sound_output = {};
-  sound_output.samples_per_second = 48000;
-  sound_output.tone_hz = 256;
-  sound_output.running_sample_idx = 0;
+  SoundOutput sound_output;
   sound_output.wave_period =
       sound_output.samples_per_second / sound_output.tone_hz;
-  sound_output.bytes_per_sample = sizeof(int16_t) * 2;
   sound_output.secondary_buffer_size =
       sound_output.samples_per_second * sound_output.bytes_per_sample;
-  sound_output.tone_volume = 5000;
+  sound_output.latency_sample_count = sound_output.samples_per_second / 15;
 
   if (!InitDirectSound(window, sound_output.samples_per_second,
                        sound_output.secondary_buffer_size)) {
@@ -451,7 +481,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     return 1;
   }
 
-  if (!FillSoundBuffer(&sound_output, 0, sound_output.secondary_buffer_size)) {
+  if (!FillSoundBuffer(
+          &sound_output, 0,
+          sound_output.latency_sample_count * sound_output.bytes_per_sample)) {
     return 1;
   }
 
@@ -471,7 +503,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
       DispatchMessageW(&message);
     }
 
-    HandleGamepad(&x_offset, &y_offset);
+    HandleGamepad(&x_offset, &y_offset, &sound_output);
 
     Render(&buffer, x_offset, y_offset);
 
@@ -484,19 +516,27 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
       return 1;
     }
 
+    DWORD target_cursor = (play_cursor + (sound_output.latency_sample_count *
+                                          sound_output.bytes_per_sample)) %
+                          sound_output.secondary_buffer_size;
     DWORD byte_to_lock =
         (sound_output.running_sample_idx * sound_output.bytes_per_sample) %
         sound_output.secondary_buffer_size;
     DWORD bytes_to_write = 0;
 
-    if (byte_to_lock > play_cursor) {
+    if (byte_to_lock > target_cursor) {
       bytes_to_write = sound_output.secondary_buffer_size - byte_to_lock;
-      bytes_to_write += play_cursor;
+      bytes_to_write += target_cursor;
+
     } else {
-      bytes_to_write = play_cursor - byte_to_lock;
+      bytes_to_write = target_cursor - byte_to_lock;
     }
 
-    FillSoundBuffer(&sound_output, byte_to_lock, bytes_to_write);
+    if (bytes_to_write > 0) {
+      if (!FillSoundBuffer(&sound_output, byte_to_lock, bytes_to_write)) {
+        return 1;
+      }
+    }
 
     Dimensions window_dimensions = GetDimensions(window);
     DisplayBuffer(device_context, 0, 0, window_dimensions.width,
