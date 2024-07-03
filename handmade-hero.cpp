@@ -12,6 +12,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
 
 #define PI 3.14159265359f
 
@@ -499,6 +500,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   LARGE_INTEGER last_counter;
   QueryPerformanceCounter(&last_counter);
 
+  int64_t last_cycle_count = __rdtsc();
+
   while (RUNNING) {
     MSG message;
     while (PeekMessageW(&message, 0, 0, 0, PM_REMOVE)) {
@@ -549,18 +552,25 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     DisplayBuffer(device_context, 0, 0, window_dimensions.width,
                   window_dimensions.height, &buffer);
 
+    int64_t end_cycle_count = __rdtsc();
+
     LARGE_INTEGER end_counter;
     QueryPerformanceCounter(&end_counter);
 
+    float megacycles_elapsed =
+        static_cast<float>((end_cycle_count - last_cycle_count) / 1'000'000.0f);
     uint64_t counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
-    int64_t ms_per_frame = 1000 * counter_elapsed / perf_count_frequency;
-    int64_t fps = 1000 / ms_per_frame;
+    float ms_per_frame =
+        static_cast<float>(1000.0f * counter_elapsed) / perf_count_frequency;
+    float fps = static_cast<float>(perf_count_frequency) / counter_elapsed;
 
-    wchar_t buffer[256];
-    wsprintfW(buffer, L"ms/frame = %d\tfps = %d\n", ms_per_frame, fps);
-    OutputDebugStringW(buffer);
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer), "%.02f ms/f\t%.02f fps\t%.02fmc/f\n",
+             ms_per_frame, fps, megacycles_elapsed);
+    OutputDebugStringA(buffer);
 
     last_counter = end_counter;
+    last_cycle_count = end_cycle_count;
   }
 
   ReleaseDC(window, device_context);
