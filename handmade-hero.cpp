@@ -500,7 +500,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   LARGE_INTEGER last_counter;
   QueryPerformanceCounter(&last_counter);
 
-  int64_t last_cycle_count = __rdtsc();
+  uint64_t last_cycle_count = __rdtsc();
 
   while (RUNNING) {
     MSG message;
@@ -552,7 +552,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     DisplayBuffer(device_context, 0, 0, window_dimensions.width,
                   window_dimensions.height, &buffer);
 
-    int64_t end_cycle_count = __rdtsc();
+    uint64_t end_cycle_count = __rdtsc();
 
     LARGE_INTEGER end_counter;
     QueryPerformanceCounter(&end_counter);
