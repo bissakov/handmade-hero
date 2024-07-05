@@ -12,7 +12,8 @@
 
 #include <cassert>
 #include <cstdint>
-#include <cstdio>
+
+#include "handmade-hero.cpp"
 
 #define PI 3.14159265359f
 
@@ -151,20 +152,6 @@ static Dimensions GetDimensions(HWND window) {
   int width = rect.right - rect.left;
   int height = rect.bottom - rect.top;
   return {width, height};
-}
-
-static void Render(Buffer *buffer, int x_offset, int y_offset) {
-  uint8_t *row = reinterpret_cast<uint8_t *>(buffer->memory);
-  for (int y = 0; y < buffer->height; ++y) {
-    uint32_t *pixel = reinterpret_cast<uint32_t *>(row);
-    for (int x = 0; x < buffer->width; ++x) {
-      uint8_t red = x + x_offset;
-      uint8_t green = 0;
-      uint8_t blue = y + y_offset;
-      *pixel++ = (red << 16) | (green << 8) | blue;
-    }
-    row += buffer->pitch;
-  }
 }
 
 static void ResizeDIBSection(Buffer *buffer, int width, int height) {
@@ -515,7 +502,14 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
 
     HandleGamepad(&x_offset, &y_offset, &sound_output);
 
-    Render(&buffer, x_offset, y_offset);
+    GameBuffer game_buffer = {};
+    game_buffer.memory = buffer.memory;
+    game_buffer.width = buffer.width;
+    game_buffer.height = buffer.height;
+    game_buffer.pitch = buffer.pitch;
+    game_buffer.bytes_per_pixel = buffer.bytes_per_pixel;
+
+    Render(&game_buffer, x_offset, y_offset);
 
     DWORD play_cursor;
     DWORD write_cursor;
