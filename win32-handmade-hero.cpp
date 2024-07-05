@@ -493,14 +493,14 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     return 1;
   }
 
-  LARGE_INTEGER perf_count_frequency_result;
-  QueryPerformanceFrequency(&perf_count_frequency_result);
-  int64_t perf_count_frequency = perf_count_frequency_result.QuadPart;
-
-  LARGE_INTEGER last_counter;
-  QueryPerformanceCounter(&last_counter);
-
-  uint64_t last_cycle_count = __rdtsc();
+  // LARGE_INTEGER perf_count_frequency_result;
+  // QueryPerformanceFrequency(&perf_count_frequency_result);
+  // int64_t perf_count_frequency = perf_count_frequency_result.QuadPart;
+  //
+  // LARGE_INTEGER last_counter;
+  // QueryPerformanceCounter(&last_counter);
+  //
+  // uint64_t last_cycle_count = __rdtsc();
 
   while (RUNNING) {
     MSG message;
@@ -552,25 +552,26 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     DisplayBuffer(device_context, 0, 0, window_dimensions.width,
                   window_dimensions.height, &buffer);
 
-    uint64_t end_cycle_count = __rdtsc();
+    // uint64_t end_cycle_count = __rdtsc();
+    //
+    // LARGE_INTEGER end_counter;
+    // QueryPerformanceCounter(&end_counter);
 
-    LARGE_INTEGER end_counter;
-    QueryPerformanceCounter(&end_counter);
+    // float megacycles_elapsed =
+    //     static_cast<float>((end_cycle_count - last_cycle_count) /
+    //     1'000'000.0f);
+    // uint64_t counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
+    // float ms_per_frame =
+    //     static_cast<float>(1000.0f * counter_elapsed) / perf_count_frequency;
+    // float fps = static_cast<float>(perf_count_frequency) / counter_elapsed;
 
-    float megacycles_elapsed =
-        static_cast<float>((end_cycle_count - last_cycle_count) / 1'000'000.0f);
-    uint64_t counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
-    float ms_per_frame =
-        static_cast<float>(1000.0f * counter_elapsed) / perf_count_frequency;
-    float fps = static_cast<float>(perf_count_frequency) / counter_elapsed;
+    // char buffer[256];
+    // snprintf(buffer, sizeof(buffer), "%.02f ms/f\t%.02f fps\t%.02fmc/f\n",
+    //          ms_per_frame, fps, megacycles_elapsed);
+    // OutputDebugStringA(buffer);
 
-    char buffer[256];
-    snprintf(buffer, sizeof(buffer), "%.02f ms/f\t%.02f fps\t%.02fmc/f\n",
-             ms_per_frame, fps, megacycles_elapsed);
-    OutputDebugStringA(buffer);
-
-    last_counter = end_counter;
-    last_cycle_count = end_cycle_count;
+    // last_counter = end_counter;
+    // last_cycle_count = end_cycle_count;
   }
 
   ReleaseDC(window, device_context);
