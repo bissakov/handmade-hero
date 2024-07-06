@@ -425,10 +425,7 @@ static bool FillSoundBuffer(SoundOutput *sound_output, uint32_t byte_to_lock,
     ++sound_output->running_sample_idx;
   }
 
-  if (!SUCCEEDED(
-          SOUND_BUFFER->Unlock(region1, region1_size, region2, region2_size))) {
-    return false;
-  }
+  SOUND_BUFFER->Unlock(region1, region1_size, region2, region2_size);
 
   return true;
 }
