@@ -7,7 +7,10 @@
 
 #include "handmade-hero.h"
 
+#include <cmath>
 #include <cstdint>
+
+#define PI 3.14159265359f
 
 void Render(GameBuffer *buffer, int x_offset, int y_offset) {
   uint8_t *row = reinterpret_cast<uint8_t *>(buffer->memory);
@@ -23,7 +26,29 @@ void Render(GameBuffer *buffer, int x_offset, int y_offset) {
   }
 }
 
-void UpdateAndRender(GameBuffer *buffer, int x_offset, int y_offset) {
+void OutputGameSound(GameSoundBuffer *sound_buffer) {
+  // DWORD sample_count = region1_size / sound_output->bytes_per_sample;
+  // int16_t *sample_out = reinterpret_cast<int16_t *>(region1);
+
+  static float t_sin;
+  int16_t *samples = sound_buffer->samples;
+  uint16_t tone_volume = 3000;
+
+  int wave_period = sound_buffer->samples_per_second / sound_buffer->tone_hz;
+
+  for (int i = 0; i < sound_buffer->sample_count; ++i) {
+    float sin_value = sinf(t_sin);
+    int16_t sample_value = (int16_t)(sin_value * tone_volume);
+    *samples++ = sample_value;
+    *samples++ = sample_value;
+
+    t_sin += 2.0f * PI * 1.0f / static_cast<float>(wave_period);
+  }
+}
+
+void UpdateAndRender(GameBuffer *buffer, GameSoundBuffer *sound_buffer,
+                     int x_offset, int y_offset) {
+  OutputGameSound(sound_buffer);
   Render(buffer, x_offset, y_offset);
 }
 

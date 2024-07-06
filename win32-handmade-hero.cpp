@@ -12,10 +12,10 @@
 
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
 
 #include "handmade-hero.cpp"
-
-#define PI 3.14159265359f
+#include "handmade-hero.h"
 
 typedef DWORD WINAPI XInputGetStateT(DWORD controller_idx,
                                      XINPUT_STATE *controller_state);
@@ -362,8 +362,40 @@ static void HandleGamepad(int *x_offset, int *y_offset,
   }
 }
 
+static bool ClearBuffer(SoundOutput *sound_output) {
+  void *region1;
+  void *region2;
+  DWORD region1_size;
+  DWORD region2_size;
+
+  HRESULT result =
+      SOUND_BUFFER->Lock(0, sound_output->secondary_buffer_size, &region1,
+                         &region1_size, &region2, &region2_size, 0);
+  if (!SUCCEEDED(result)) {
+    return false;
+  }
+
+  int8_t *dest_sample = reinterpret_cast<int8_t *>(region1);
+  for (int byte_idx = 0; byte_idx < region1_size; ++byte_idx) {
+    *dest_sample++ = 0;
+  }
+
+  dest_sample = reinterpret_cast<int8_t *>(region2);
+  for (int byte_idx = 0; byte_idx < region2_size; ++byte_idx) {
+    *dest_sample++ = 0;
+  }
+
+  if (!SUCCEEDED(
+          SOUND_BUFFER->Unlock(region1, region1_size, region2, region2_size))) {
+    return false;
+  }
+
+  return true;
+}
+
 static bool FillSoundBuffer(SoundOutput *sound_output, uint32_t byte_to_lock,
-                            uint32_t bytes_to_write) {
+                            uint32_t bytes_to_write,
+                            GameSoundBuffer *game_sound_buffer) {
   void *region1;
   void *region2;
   DWORD region1_size;
@@ -373,45 +405,28 @@ static bool FillSoundBuffer(SoundOutput *sound_output, uint32_t byte_to_lock,
       SOUND_BUFFER->Lock(byte_to_lock, bytes_to_write, &region1, &region1_size,
                          &region2, &region2_size, 0);
   if (!SUCCEEDED(result)) {
-    OutputDebugStringW(L"Failed to lock secondary buffer\n");
     return false;
   }
 
   DWORD region1_sample_count = region1_size / sound_output->bytes_per_sample;
-  int16_t *sample_out = reinterpret_cast<int16_t *>(region1);
+  int16_t *dest_sample = reinterpret_cast<int16_t *>(region1);
+  int16_t *source_sample = game_sound_buffer->samples;
   for (int i = 0; i < region1_sample_count; ++i) {
-    float sin_value = sinf(sound_output->t_sin);
-    int16_t sample_value = (int16_t)(sin_value * sound_output->tone_volume);
-    *sample_out++ = sample_value;
-    *sample_out++ = sample_value;
-
-    sound_output->t_sin +=
-        2.0f * PI / static_cast<float>(sound_output->wave_period);
-    // if (sound_output->t_sin > 2.0f * PI) {
-    //   sound_output->t_sin -= 2.0f * PI;
-    // }
+    *dest_sample++ = *source_sample++;
+    *dest_sample++ = *source_sample++;
     ++sound_output->running_sample_idx;
   }
 
   DWORD region2_sample_count = region2_size / sound_output->bytes_per_sample;
-  sample_out = reinterpret_cast<int16_t *>(region2);
+  dest_sample = reinterpret_cast<int16_t *>(region2);
   for (int i = 0; i < region2_sample_count; ++i) {
-    float sin_value = sinf(sound_output->t_sin);
-    int16_t sample_value = (int16_t)(sin_value * sound_output->tone_volume);
-    *sample_out++ = sample_value;
-    *sample_out++ = sample_value;
-
-    sound_output->t_sin +=
-        2.0f * PI / static_cast<float>(sound_output->wave_period);
-    // if (sound_output->t_sin > 2.0f * PI) {
-    //   sound_output->t_sin -= 2.0f * PI;
-    // }
+    *dest_sample++ = *source_sample++;
+    *dest_sample++ = *source_sample++;
     ++sound_output->running_sample_idx;
   }
 
   if (!SUCCEEDED(
           SOUND_BUFFER->Unlock(region1, region1_size, region2, region2_size))) {
-    OutputDebugStringW(L"Failed to unlock secondary buffer\n");
     return false;
   }
 
@@ -469,25 +484,26 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     return 1;
   }
 
-  if (!FillSoundBuffer(
-          &sound_output, 0,
-          sound_output.latency_sample_count * sound_output.bytes_per_sample)) {
+  if (!ClearBuffer(&sound_output)) {
     return 1;
   }
 
   if (!SUCCEEDED(SOUND_BUFFER->Play(0, 0, DSBPLAY_LOOPING))) {
-    OutputDebugStringW(L"Failed to play secondary buffer\n");
     return 1;
   }
 
-  // LARGE_INTEGER perf_count_frequency_result;
-  // QueryPerformanceFrequency(&perf_count_frequency_result);
-  // int64_t perf_count_frequency = perf_count_frequency_result.QuadPart;
-  //
-  // LARGE_INTEGER last_counter;
-  // QueryPerformanceCounter(&last_counter);
-  //
-  // uint64_t last_cycle_count = __rdtsc();
+  LARGE_INTEGER perf_count_frequency_result;
+  QueryPerformanceFrequency(&perf_count_frequency_result);
+  int64_t perf_count_frequency = perf_count_frequency_result.QuadPart;
+
+  LARGE_INTEGER last_counter;
+  QueryPerformanceCounter(&last_counter);
+
+  uint64_t last_cycle_count = __rdtsc();
+
+  int16_t *samples = reinterpret_cast<int16_t *>(
+      VirtualAlloc(0, sound_output.secondary_buffer_size,
+                   MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
 
   while (RUNNING) {
     MSG message;
@@ -502,6 +518,32 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
 
     HandleGamepad(&x_offset, &y_offset, &sound_output);
 
+    DWORD byte_to_lock;
+    DWORD target_cursor;
+    DWORD play_cursor;
+    DWORD bytes_to_write;
+    DWORD write_cursor;
+    bool sound_is_valid = false;
+    if (SUCCEEDED(
+            SOUND_BUFFER->GetCurrentPosition(&play_cursor, &write_cursor))) {
+      byte_to_lock =
+          (sound_output.running_sample_idx * sound_output.bytes_per_sample) %
+          sound_output.secondary_buffer_size;
+      target_cursor = (play_cursor + (sound_output.latency_sample_count *
+                                      sound_output.bytes_per_sample)) %
+                      sound_output.secondary_buffer_size;
+      bytes_to_write = 0;
+
+      if (byte_to_lock > target_cursor) {
+        bytes_to_write = sound_output.secondary_buffer_size - byte_to_lock;
+        bytes_to_write += target_cursor;
+
+      } else {
+        bytes_to_write = target_cursor - byte_to_lock;
+      }
+      sound_is_valid = true;
+    }
+
     GameBuffer game_buffer = {};
     game_buffer.memory = buffer.memory;
     game_buffer.width = buffer.width;
@@ -509,63 +551,44 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     game_buffer.pitch = buffer.pitch;
     game_buffer.bytes_per_pixel = buffer.bytes_per_pixel;
 
-    Render(&game_buffer, x_offset, y_offset);
+    GameSoundBuffer game_sound_buffer = {};
+    game_sound_buffer.samples_per_second = sound_output.samples_per_second;
+    game_sound_buffer.sample_count =
+        bytes_to_write / sound_output.bytes_per_sample;
+    game_sound_buffer.tone_hz = sound_output.tone_hz;
+    game_sound_buffer.wave_period = sound_output.wave_period;
+    game_sound_buffer.samples = samples;
 
-    DWORD play_cursor;
-    DWORD write_cursor;
-    if (!SUCCEEDED(
-            SOUND_BUFFER->GetCurrentPosition(&play_cursor, &write_cursor))) {
-      OutputDebugStringW(
-          L"Failed to get current position of secondary buffer\n");
-      return 1;
-    }
+    UpdateAndRender(&game_buffer, &game_sound_buffer, x_offset, y_offset);
 
-    DWORD target_cursor = (play_cursor + (sound_output.latency_sample_count *
-                                          sound_output.bytes_per_sample)) %
-                          sound_output.secondary_buffer_size;
-    DWORD byte_to_lock =
-        (sound_output.running_sample_idx * sound_output.bytes_per_sample) %
-        sound_output.secondary_buffer_size;
-    DWORD bytes_to_write = 0;
-
-    if (byte_to_lock > target_cursor) {
-      bytes_to_write = sound_output.secondary_buffer_size - byte_to_lock;
-      bytes_to_write += target_cursor;
-
-    } else {
-      bytes_to_write = target_cursor - byte_to_lock;
-    }
-
-    if (bytes_to_write > 0) {
-      if (!FillSoundBuffer(&sound_output, byte_to_lock, bytes_to_write)) {
-        return 1;
-      }
+    if (sound_is_valid) {
+      FillSoundBuffer(&sound_output, byte_to_lock, bytes_to_write,
+                      &game_sound_buffer);
     }
 
     Dimensions window_dimensions = GetDimensions(window);
     DisplayBuffer(device_context, 0, 0, window_dimensions.width,
                   window_dimensions.height, &buffer);
 
-    // uint64_t end_cycle_count = __rdtsc();
-    //
-    // LARGE_INTEGER end_counter;
-    // QueryPerformanceCounter(&end_counter);
+    uint64_t end_cycle_count = __rdtsc();
 
-    // float megacycles_elapsed =
-    //     static_cast<float>((end_cycle_count - last_cycle_count) /
-    //     1'000'000.0f);
-    // uint64_t counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
-    // float ms_per_frame =
-    //     static_cast<float>(1000.0f * counter_elapsed) / perf_count_frequency;
-    // float fps = static_cast<float>(perf_count_frequency) / counter_elapsed;
+    LARGE_INTEGER end_counter;
+    QueryPerformanceCounter(&end_counter);
 
-    // char buffer[256];
-    // snprintf(buffer, sizeof(buffer), "%.02f ms/f\t%.02f fps\t%.02fmc/f\n",
-    //          ms_per_frame, fps, megacycles_elapsed);
-    // OutputDebugStringA(buffer);
+    float megacycles_elapsed =
+        static_cast<float>((end_cycle_count - last_cycle_count) / 1'000'000.0f);
+    uint64_t counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
+    float ms_per_frame =
+        static_cast<float>(1000.0f * counter_elapsed) / perf_count_frequency;
+    float fps = static_cast<float>(perf_count_frequency) / counter_elapsed;
 
-    // last_counter = end_counter;
-    // last_cycle_count = end_cycle_count;
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer), "%.02f ms/f\t%.02f fps\t%.02fmc/f\n",
+             ms_per_frame, fps, megacycles_elapsed);
+    OutputDebugStringA(buffer);
+
+    last_counter = end_counter;
+    last_cycle_count = end_cycle_count;
   }
 
   ReleaseDC(window, device_context);
