@@ -5,7 +5,7 @@
 // Handmade Hero License by Casey Muratori
 // See the end of file for license information
 
-#include "handmade-hero.h"
+#include "../handmade-hero/handmade-hero.h"
 
 #include <cmath>
 #include <cstdint>
@@ -49,6 +49,12 @@ void OutputGameSound(GameSoundBuffer *sound_buffer) {
 void UpdateAndRender(GameBuffer *buffer, GameSoundBuffer *sound_buffer) {
   static int x_offset = 0;
   static int y_offset = 0;
+
+  // if (input.is_analog) {
+  //   // askjld
+  // } else {
+  //   // asdklasj
+  // }
 
   OutputGameSound(sound_buffer);
   Render(buffer, x_offset, y_offset);

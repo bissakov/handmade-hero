@@ -13,7 +13,7 @@
 
 #include <cstdint>
 
-#include "handmade-hero.h"
+#include "../handmade-hero/handmade-hero.h"
 
 typedef DWORD WINAPI XInputGetStateT(DWORD controller_idx,
                                      XINPUT_STATE *controller_state);
@@ -54,7 +54,7 @@ Dimensions GetDimensions(HWND window);
 void ResizeDIBSection(Buffer *buffer, int width, int height);
 LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
                            LPARAM l_param);
-void HandleGamepad(int *x_offset, int *y_offset, SoundOutput *sound_output);
+void HandleGamepad();
 bool ClearBuffer(SoundOutput *sound_output);
 bool FillSoundBuffer(SoundOutput *sound_output, uint32_t byte_to_lock,
                      uint32_t bytes_to_write,
