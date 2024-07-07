@@ -5,8 +5,9 @@
 // Handmade Hero License by Casey Muratori
 // See the end of file for license information
 
-#include <cstdint>
 #ifndef HANDMADE_HERO_H_
+
+#include <cstdint>
 
 struct GameBuffer {
   void *memory;
@@ -28,8 +29,7 @@ void Render(GameBuffer *buffer, int x_offset, int y_offset);
 
 void OutputGameSound(GameSoundBuffer *sound_buffer);
 
-void UpdateAndRender(GameBuffer *buffer, GameSoundBuffer *sound_buffer,
-                     int x_offset, int y_offset);
+void UpdateAndRender(GameBuffer *buffer, GameSoundBuffer *sound_buffer);
 
 #define HANDMADE_HERO_H_
 #endif  // HANDMADE_HERO_H_

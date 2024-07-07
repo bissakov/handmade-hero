@@ -46,8 +46,10 @@ void OutputGameSound(GameSoundBuffer *sound_buffer) {
   }
 }
 
-void UpdateAndRender(GameBuffer *buffer, GameSoundBuffer *sound_buffer,
-                     int x_offset, int y_offset) {
+void UpdateAndRender(GameBuffer *buffer, GameSoundBuffer *sound_buffer) {
+  static int x_offset = 0;
+  static int y_offset = 0;
+
   OutputGameSound(sound_buffer);
   Render(buffer, x_offset, y_offset);
 }
