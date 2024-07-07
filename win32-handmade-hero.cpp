@@ -5,6 +5,8 @@
 // Handmade Hero License by Casey Muratori
 // See the end of file for license information
 
+#include "win32-handmade-hero.h"
+
 #include <dsound.h>
 #include <math.h>
 #include <windows.h>
@@ -17,13 +19,15 @@
 #include "handmade-hero.cpp"
 #include "handmade-hero.h"
 
-typedef DWORD WINAPI XInputGetStateT(DWORD controller_idx,
-                                     XINPUT_STATE *controller_state);
 static XInputGetStateT *DyXInputGetState;
-
-typedef DWORD WINAPI XInputSetStateT(DWORD controller_idx,
-                                     XINPUT_VIBRATION *vibration);
 static XInputSetStateT *DyXInputSetState;
+static IDirectSoundBuffer *SOUND_BUFFER;
+
+static bool RUNNING = true;
+static const int DEFAULT_WIDTH = 1920;
+static const int DEFAULT_HEIGHT = 1080;
+
+static Buffer buffer;
 
 bool InitXInput() {
   HMODULE xinput_lib = LoadLibraryW(L"xinput1_4.dll");
@@ -44,13 +48,7 @@ bool InitXInput() {
   return true;
 }
 
-static IDirectSoundBuffer *SOUND_BUFFER;
-
-typedef HRESULT WINAPI DirectSoundCreateT(LPGUID lpGuid, LPDIRECTSOUND *ppDS,
-                                          LPUNKNOWN pUnkOuter);
-
-static bool InitDirectSound(HWND window, int samples_per_second,
-                            int buffer_size) {
+bool InitDirectSound(HWND window, int samples_per_second, int buffer_size) {
   HMODULE direct_sound_lib = LoadLibraryW(L"dsound.dll");
   if (!direct_sound_lib) {
     return false;
@@ -114,39 +112,7 @@ static bool InitDirectSound(HWND window, int samples_per_second,
   return true;
 }
 
-static bool RUNNING = true;
-static const int DEFAULT_WIDTH = 1920;
-static const int DEFAULT_HEIGHT = 1080;
-
-struct Buffer {
-  BITMAPINFO info;
-  void *memory;
-  int width;
-  int height;
-  int pitch;
-  int bytes_per_pixel;
-};
-
-static Buffer buffer;
-
-struct Dimensions {
-  int width;
-  int height;
-};
-
-struct SoundOutput {
-  int samples_per_second = 48000;
-  int tone_hz = 256;
-  uint32_t running_sample_idx = 0;
-  int bytes_per_sample = sizeof(int16_t) * 2;
-  uint16_t tone_volume = 1000;
-  int wave_period = 0;
-  int secondary_buffer_size = 0;
-  float t_sin = 0.0f;
-  int latency_sample_count = 0;
-};
-
-static Dimensions GetDimensions(HWND window) {
+Dimensions GetDimensions(HWND window) {
   RECT rect;
   GetClientRect(window, &rect);
   int width = rect.right - rect.left;
@@ -154,7 +120,7 @@ static Dimensions GetDimensions(HWND window) {
   return {width, height};
 }
 
-static void ResizeDIBSection(Buffer *buffer, int width, int height) {
+void ResizeDIBSection(Buffer *buffer, int width, int height) {
   if (buffer->memory) {
     VirtualFree(buffer->memory, 0, MEM_RELEASE);
   }
@@ -188,8 +154,8 @@ static void DisplayBuffer(HDC device_context, int window_x, int window_y,
                 &buffer->info, DIB_RGB_COLORS, SRCCOPY);
 }
 
-static LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
-                                  LPARAM l_param) {
+LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
+                           LPARAM l_param) {
   LRESULT result = 0;
 
   switch (message) {
@@ -292,8 +258,7 @@ static LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
   return result;
 }
 
-static void HandleGamepad(int *x_offset, int *y_offset,
-                          SoundOutput *sound_output) {
+void HandleGamepad() {
   if (!DyXInputGetState || !DyXInputSetState) {
     return;
   }
@@ -313,47 +278,6 @@ static void HandleGamepad(int *x_offset, int *y_offset,
       bool left = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
       bool right = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
 
-      if (up) {
-        *y_offset += 10;
-        // if (sound_output->tone_volume >= 5000) {
-        //   sound_output->tone_volume = 5000;
-        // } else {
-        //   sound_output->tone_volume += 100;
-        // }
-
-        sound_output->tone_hz = 512;
-        sound_output->wave_period =
-            sound_output->samples_per_second / sound_output->tone_hz;
-      }
-      if (down) {
-        *y_offset -= 10;
-        // if (sound_output->tone_volume <= 100) {
-        //   sound_output->tone_volume = 100;
-        // } else {
-        //   sound_output->tone_volume -= 100;
-        // }
-
-        sound_output->tone_hz = 256;
-        sound_output->wave_period =
-            sound_output->samples_per_second / sound_output->tone_hz;
-      }
-      if (left) {
-        *x_offset += 10;
-      }
-      if (right) {
-        *x_offset -= 10;
-      }
-
-      *x_offset -= gamepad->sThumbLX / 4096;
-      *y_offset += gamepad->sThumbLY / 4096;
-
-      sound_output->tone_hz =
-          512 +
-          static_cast<int>(
-              (256.0f * (static_cast<float>(gamepad->sThumbLX) / 30000.0f)));
-      sound_output->wave_period =
-          sound_output->samples_per_second / sound_output->tone_hz;
-
       // vibration.wLeftMotorSpeed = 65535;
       // DyXInputSetState(controller_idx, &vibration);
     } else {
@@ -362,7 +286,7 @@ static void HandleGamepad(int *x_offset, int *y_offset,
   }
 }
 
-static bool ClearBuffer(SoundOutput *sound_output) {
+bool ClearBuffer(SoundOutput *sound_output) {
   void *region1;
   void *region2;
   DWORD region1_size;
@@ -393,9 +317,9 @@ static bool ClearBuffer(SoundOutput *sound_output) {
   return true;
 }
 
-static bool FillSoundBuffer(SoundOutput *sound_output, uint32_t byte_to_lock,
-                            uint32_t bytes_to_write,
-                            GameSoundBuffer *game_sound_buffer) {
+bool FillSoundBuffer(SoundOutput *sound_output, uint32_t byte_to_lock,
+                     uint32_t bytes_to_write,
+                     GameSoundBuffer *game_sound_buffer) {
   void *region1;
   void *region2;
   DWORD region1_size;
@@ -465,9 +389,6 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
 
   HDC device_context = GetDC(window);
 
-  int x_offset = 0;
-  int y_offset = 0;
-
   SoundOutput sound_output;
   sound_output.wave_period =
       sound_output.samples_per_second / sound_output.tone_hz;
@@ -513,12 +434,12 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
       DispatchMessageW(&message);
     }
 
-    HandleGamepad(&x_offset, &y_offset, &sound_output);
+    HandleGamepad();
 
-    DWORD byte_to_lock;
-    DWORD target_cursor;
-    DWORD play_cursor;
-    DWORD bytes_to_write;
+    DWORD byte_to_lock = 0;
+    DWORD target_cursor = 0;
+    DWORD play_cursor = 0;
+    DWORD bytes_to_write = 0;
     DWORD write_cursor;
     bool sound_is_valid = false;
     if (SUCCEEDED(
@@ -556,7 +477,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     game_sound_buffer.wave_period = sound_output.wave_period;
     game_sound_buffer.samples = samples;
 
-    UpdateAndRender(&game_buffer, &game_sound_buffer, x_offset, y_offset);
+    UpdateAndRender(&game_buffer, &game_sound_buffer);
 
     if (sound_is_valid) {
       FillSoundBuffer(&sound_output, byte_to_lock, bytes_to_write,
