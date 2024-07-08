@@ -16,6 +16,16 @@
 #include "../../src/handmade-hero/handmade-hero.h"
 
 #define DEV 1
+#define DEBUG 1
+
+#if DEBUG
+#define Assert(expression) \
+  if (!(expression)) {     \
+    __debugbreak();        \
+  }
+#else
+#define Assert(expression)
+#endif
 
 typedef DWORD WINAPI XInputGetStateT(DWORD controller_idx,
                                      XINPUT_STATE *controller_state);
