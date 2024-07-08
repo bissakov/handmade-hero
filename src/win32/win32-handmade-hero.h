@@ -17,6 +17,10 @@
 
 #define ArraySize(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+#define Kilobytes(value) ((value) * 1024)
+#define Megabytes(value) (Kilobytes(value) * 1024)
+#define Gigabytes(value) (Megabytes(value) * 1024)
+
 typedef DWORD WINAPI XInputGetStateT(DWORD controller_idx,
                                      XINPUT_STATE *controller_state);
 typedef DWORD WINAPI XInputSetStateT(DWORD controller_idx,
@@ -40,11 +44,9 @@ struct Dimensions {
 
 struct SoundOutput {
   int samples_per_second = 48000;
-  float tone_hz = 256.0f;
   uint32_t running_sample_idx = 0;
   int bytes_per_sample = sizeof(int16_t) * 2;
   uint16_t tone_volume = 1000;
-  float wave_period = 0.0f;
   int secondary_buffer_size = 0;
   float t_sin = 0.0f;
   int latency_sample_count = 0;

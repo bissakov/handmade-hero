@@ -9,6 +9,37 @@
 
 #ifndef HANDMADE_HERO_H_
 
+#define ArraySize(arr) (sizeof(arr) / sizeof((arr)[0]))
+
+#define Kilobytes(value) ((value) * 1024)
+#define Megabytes(value) (Kilobytes(value) * 1024)
+#define Gigabytes(value) (Megabytes(value) * 1024)
+#define Terabytes(value) (Gigabytes(value) * 1024)
+
+#if DEBUG
+#define Assert(expression) \
+  if (!(expression)) {     \
+    *reinterpret_cast<int *>(0) = 0;
+}
+#else
+#define Assert(expression)
+#endif
+
+struct GameMemory {
+  bool is_init;
+  uint64_t permanent_storage_size;
+  void *permanent_storage;
+
+  uint64_t transient_storage_size;
+  void *transient_storage;
+};
+
+struct GameState {
+  float tone_hz;
+  int x_offset = 0;
+  int y_offset = 0;
+};
+
 struct GameBuffer {
   void *memory;
   int width;
@@ -20,7 +51,6 @@ struct GameBuffer {
 struct GameSoundBuffer {
   int samples_per_second;
   int sample_count;
-  float tone_hz;
   float wave_period;
   int16_t *samples;
 };
@@ -66,8 +96,8 @@ static inline void Render(GameBuffer *buffer, int x_offset, int y_offset);
 
 static inline void OutputGameSound(GameSoundBuffer *sound_buffer);
 
-void UpdateAndRender(GameBuffer *buffer, GameSoundBuffer *sound_buffer,
-                     GameInput *game_input);
+void UpdateAndRender(GameMemory *memory, GameBuffer *buffer,
+                     GameSoundBuffer *sound_buffer, GameInput *input);
 
 #define HANDMADE_HERO_H_
 #endif  // HANDMADE_HERO_H_

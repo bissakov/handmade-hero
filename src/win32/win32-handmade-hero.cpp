@@ -129,7 +129,7 @@ static void ResizeDIBSection(Buffer *buffer, int width, int height) {
   buffer->height = height;
   buffer->bytes_per_pixel = 4;
 
-  assert(buffer->width && buffer->height && buffer->bytes_per_pixel);
+  Assert(buffer->width && buffer->height && buffer->bytes_per_pixel);
 
   buffer->info.bmiHeader.biSize = sizeof(buffer->info.bmiHeader);
   buffer->info.bmiHeader.biWidth = buffer->width;
@@ -321,7 +321,7 @@ static void HandleGamepad(GameInput *old_input, GameInput *new_input) {
           XINPUT_GAMEPAD_RIGHT_SHOULDER,
       };
 
-      assert(ArraySize(button_bits) == ArraySize(old_controller->buttons));
+      Assert(ArraySize(button_bits) == ArraySize(old_controller->buttons));
 
       for (int i = 0; i < ArraySize(old_controller->buttons); ++i) {
         ProcessXInputDigitalButton(&old_controller->buttons[i],
@@ -444,8 +444,6 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int) {
   HDC device_context = GetDC(window);
 
   SoundOutput sound_output;
-  sound_output.wave_period =
-      sound_output.samples_per_second / sound_output.tone_hz;
   sound_output.secondary_buffer_size =
       sound_output.samples_per_second * sound_output.bytes_per_sample;
   sound_output.latency_sample_count = sound_output.samples_per_second / 15;
@@ -476,6 +474,37 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int) {
   int16_t *samples = reinterpret_cast<int16_t *>(
       VirtualAlloc(0, sound_output.secondary_buffer_size,
                    MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+
+  if (!samples) {
+    OutputDebugStringW(L"Samples allocation failed\n");
+    return 1;
+  }
+
+#if DEV
+  LPVOID base_address = 0;
+#else
+  LPVOID base_address = (LPVOID)Terabytes((uint64_t)2);
+#endif
+
+  GameMemory memory = {};
+  memory.permanent_storage_size = Megabytes(64);
+  memory.transient_storage_size = Gigabytes((uint64_t)4);
+  uint64_t total_memory_size =
+      memory.permanent_storage_size + memory.transient_storage_size;
+
+  memory.permanent_storage =
+      VirtualAlloc(base_address, total_memory_size, MEM_RESERVE | MEM_COMMIT,
+                   PAGE_READWRITE);
+  memory.transient_storage =
+      reinterpret_cast<uint8_t *>(memory.permanent_storage) +
+      memory.permanent_storage_size;
+
+  Assert(sizeof(GameState) <= memory.permanent_storage_size);
+
+  if (!memory.permanent_storage) {
+    OutputDebugStringW(L"Memory allocation failed\n");
+    return 1;
+  }
 
   GameInput old_input = {};
   GameInput new_input = {};
@@ -530,11 +559,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int) {
     game_sound_buffer.samples_per_second = sound_output.samples_per_second;
     game_sound_buffer.sample_count =
         bytes_to_write / sound_output.bytes_per_sample;
-    game_sound_buffer.tone_hz = sound_output.tone_hz;
-    game_sound_buffer.wave_period = sound_output.wave_period;
     game_sound_buffer.samples = samples;
 
-    UpdateAndRender(&game_buffer, &game_sound_buffer, &new_input);
+    UpdateAndRender(&memory, &game_buffer, &game_sound_buffer, &new_input);
 
     if (sound_is_valid) {
       FillSoundBuffer(&sound_output, byte_to_lock, bytes_to_write,

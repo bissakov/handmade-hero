@@ -12,26 +12,26 @@
 
 #define PI 3.14159265359f
 
-static void Render(GameBuffer *buffer, int x_offset, int y_offset) {
+static void Render(GameBuffer *buffer, GameState *state) {
   uint8_t *row = reinterpret_cast<uint8_t *>(buffer->memory);
   for (int y = 0; y < buffer->height; ++y) {
     uint32_t *pixel = reinterpret_cast<uint32_t *>(row);
     for (int x = 0; x < buffer->width; ++x) {
-      uint8_t red = x + x_offset;
+      uint8_t red = x + state->x_offset;
       uint8_t green = 0;
-      uint8_t blue = y + y_offset;
+      uint8_t blue = y + state->y_offset;
       *pixel++ = (red << 16) | (green << 8) | blue;
     }
     row += buffer->pitch;
   }
 }
 
-static void OutputGameSound(GameSoundBuffer *sound_buffer) {
+static void OutputGameSound(GameSoundBuffer *sound_buffer, float tone_hz) {
   static float t_sin;
   int16_t *samples = sound_buffer->samples;
   uint16_t tone_volume = 3000;
 
-  float wave_period = sound_buffer->samples_per_second / sound_buffer->tone_hz;
+  sound_buffer->wave_period = sound_buffer->samples_per_second / tone_hz;
 
   for (int i = 0; i < sound_buffer->sample_count; ++i) {
     float sin_value = sinf(t_sin);
@@ -39,30 +39,32 @@ static void OutputGameSound(GameSoundBuffer *sound_buffer) {
     *samples++ = sample_value;
     *samples++ = sample_value;
 
-    t_sin += 2.0f * PI * 1.0f / wave_period;
+    t_sin += 2.0f * PI * 1.0f / sound_buffer->wave_period;
   }
 }
 
-void UpdateAndRender(GameBuffer *buffer, GameSoundBuffer *sound_buffer,
-                     GameInput *game_input) {
-  static int x_offset = 0;
-  static int y_offset = 0;
+void UpdateAndRender(GameMemory *memory, GameBuffer *buffer,
+                     GameSoundBuffer *sound_buffer, GameInput *input) {
+  GameState *state = static_cast<GameState *>(memory->permanent_storage);
+  if (!memory->is_init) {
+    state->tone_hz = 256;
+    memory->is_init = true;
+  }
 
-  ControllerInput input0 = game_input->controllers[0];
+  ControllerInput input0 = input->controllers[0];
 
   if (input0.is_analog) {
-    sound_buffer->tone_hz = 256.0f + (128.0f * input0.end_y);
-    x_offset = 4 * static_cast<int>(input0.end_x);
-  } else {
-    // asdklasj
+    state->tone_hz = 256.0f + (128.0f * input0.end_y);
+    state->x_offset -= 10 * static_cast<int>(input0.end_x);
+    state->y_offset += 10 * static_cast<int>(input0.end_y);
   }
 
   if (input0.a_button.ended_down) {
-    y_offset += 10;
+    state->y_offset += 10;
   }
 
-  OutputGameSound(sound_buffer);
-  Render(buffer, x_offset, y_offset);
+  OutputGameSound(sound_buffer, state->tone_hz);
+  Render(buffer, state);
 }
 
 // All of the source code, artwork, and sound effects for Handmade Hero
