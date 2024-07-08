@@ -336,9 +336,9 @@ static void HandleGamepad(GameInput *old_input, GameInput *new_input) {
 }
 
 static void SwapInputs(GameInput *old_input, GameInput *new_input) {
-  GameInput *temp_input = new_input;
-  new_input = old_input;
-  old_input = temp_input;
+  GameInput temp_input = *new_input;
+  *new_input = *old_input;
+  *old_input = temp_input;
 }
 
 static bool ClearBuffer(SoundOutput *sound_output) {
