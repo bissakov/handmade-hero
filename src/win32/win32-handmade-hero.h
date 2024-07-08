@@ -40,11 +40,11 @@ struct Dimensions {
 
 struct SoundOutput {
   int samples_per_second = 48000;
-  int tone_hz = 256;
+  float tone_hz = 256.0f;
   uint32_t running_sample_idx = 0;
   int bytes_per_sample = sizeof(int16_t) * 2;
   uint16_t tone_volume = 1000;
-  int wave_period = 0;
+  float wave_period = 0.0f;
   int secondary_buffer_size = 0;
   float t_sin = 0.0f;
   int latency_sample_count = 0;

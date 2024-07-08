@@ -26,7 +26,7 @@ static bool RUNNING = true;
 static const int DEFAULT_WIDTH = 1920;
 static const int DEFAULT_HEIGHT = 1080;
 
-static Buffer buffer;
+static Buffer BUFFER;
 
 static bool InitXInput() {
   HMODULE xinput_lib = LoadLibraryW(L"xinput1_4.dll");
@@ -147,8 +147,7 @@ static void ResizeDIBSection(Buffer *buffer, int width, int height) {
 }
 
 static void DisplayBuffer(HDC device_context, int window_x, int window_y,
-                          uint16_t window_width, uint16_t window_height,
-                          Buffer *buffer) {
+                          int window_width, int window_height, Buffer *buffer) {
   StretchDIBits(device_context, window_x, window_y, window_width, window_height,
                 0, 0, buffer->width, buffer->height, buffer->memory,
                 &buffer->info, DIB_RGB_COLORS, SRCCOPY);
@@ -183,7 +182,7 @@ static LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
 
       Dimensions window_dimensions = GetDimensions(window);
       DisplayBuffer(device_context, 0, 0, window_dimensions.width,
-                    window_dimensions.height, &buffer);
+                    window_dimensions.height, &BUFFER);
 
       EndPaint(window, &paint);
 
@@ -191,7 +190,7 @@ static LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
     }
 
     case WM_SYSKEYDOWN: {
-      uint32_t vk_code = w_param;
+      WPARAM vk_code = w_param;
 
       bool alt_key_down = (l_param & (1 << 29)) != 0;
       if ((vk_code == VK_F4) && alt_key_down) {
@@ -211,7 +210,8 @@ static LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
     }
 
     case WM_KEYUP: {
-      uint32_t vk_code = w_param;
+      WPARAM vk_code = w_param;
+
       bool was_key_down = (l_param & (1 << 30)) != 0;
       bool is_key_down = (l_param & (1 << 31)) == 0;
 
@@ -289,10 +289,10 @@ static void HandleGamepad(GameInput *old_input, GameInput *new_input) {
     if (DyXInputGetState(controller_idx, &controller_state) == ERROR_SUCCESS) {
       XINPUT_GAMEPAD *gamepad = &controller_state.Gamepad;
 
-      bool up = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_UP;
-      bool down = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
-      bool left = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
-      bool right = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
+      // bool up = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_UP;
+      // bool down = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
+      // bool left = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
+      // bool right = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
 
       float stick_x = (gamepad->sThumbLX < 0)
                           ? static_cast<float>(gamepad->sThumbLX) / 32768.0f
@@ -355,12 +355,12 @@ static bool ClearBuffer(SoundOutput *sound_output) {
   }
 
   int8_t *dest_sample = reinterpret_cast<int8_t *>(region1);
-  for (int byte_idx = 0; byte_idx < region1_size; ++byte_idx) {
+  for (DWORD byte_idx = 0; byte_idx < region1_size; ++byte_idx) {
     *dest_sample++ = 0;
   }
 
   dest_sample = reinterpret_cast<int8_t *>(region2);
-  for (int byte_idx = 0; byte_idx < region2_size; ++byte_idx) {
+  for (DWORD byte_idx = 0; byte_idx < region2_size; ++byte_idx) {
     *dest_sample++ = 0;
   }
 
@@ -390,7 +390,7 @@ static bool FillSoundBuffer(SoundOutput *sound_output, uint32_t byte_to_lock,
   DWORD region1_sample_count = region1_size / sound_output->bytes_per_sample;
   int16_t *dest_sample = reinterpret_cast<int16_t *>(region1);
   int16_t *source_sample = game_sound_buffer->samples;
-  for (int i = 0; i < region1_sample_count; ++i) {
+  for (DWORD i = 0; i < region1_sample_count; ++i) {
     *dest_sample++ = *source_sample++;
     *dest_sample++ = *source_sample++;
     ++sound_output->running_sample_idx;
@@ -398,7 +398,7 @@ static bool FillSoundBuffer(SoundOutput *sound_output, uint32_t byte_to_lock,
 
   DWORD region2_sample_count = region2_size / sound_output->bytes_per_sample;
   dest_sample = reinterpret_cast<int16_t *>(region2);
-  for (int i = 0; i < region2_sample_count; ++i) {
+  for (DWORD i = 0; i < region2_sample_count; ++i) {
     *dest_sample++ = *source_sample++;
     *dest_sample++ = *source_sample++;
     ++sound_output->running_sample_idx;
@@ -409,14 +409,13 @@ static bool FillSoundBuffer(SoundOutput *sound_output, uint32_t byte_to_lock,
   return true;
 }
 
-int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
-                     LPSTR cmd_line, int show_code) {
+int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int) {
   if (!InitXInput()) {
     OutputDebugStringW(L"XInput initialization failed\n");
     return ERROR_DEVICE_NOT_CONNECTED;
   }
 
-  ResizeDIBSection(&buffer, DEFAULT_WIDTH, DEFAULT_HEIGHT);
+  ResizeDIBSection(&BUFFER, DEFAULT_WIDTH, DEFAULT_HEIGHT);
 
   WNDCLASSW window_class = {};
 
@@ -521,11 +520,11 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     }
 
     GameBuffer game_buffer = {};
-    game_buffer.memory = buffer.memory;
-    game_buffer.width = buffer.width;
-    game_buffer.height = buffer.height;
-    game_buffer.pitch = buffer.pitch;
-    game_buffer.bytes_per_pixel = buffer.bytes_per_pixel;
+    game_buffer.memory = BUFFER.memory;
+    game_buffer.width = BUFFER.width;
+    game_buffer.height = BUFFER.height;
+    game_buffer.pitch = BUFFER.pitch;
+    game_buffer.bytes_per_pixel = BUFFER.bytes_per_pixel;
 
     GameSoundBuffer game_sound_buffer = {};
     game_sound_buffer.samples_per_second = sound_output.samples_per_second;
@@ -544,7 +543,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
 
     Dimensions window_dimensions = GetDimensions(window);
     DisplayBuffer(device_context, 0, 0, window_dimensions.width,
-                  window_dimensions.height, &buffer);
+                  window_dimensions.height, &BUFFER);
 
     uint64_t end_cycle_count = __rdtsc();
 

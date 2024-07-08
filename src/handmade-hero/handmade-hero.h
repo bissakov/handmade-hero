@@ -20,8 +20,8 @@ struct GameBuffer {
 struct GameSoundBuffer {
   int samples_per_second;
   int sample_count;
-  int tone_hz;
-  int wave_period;
+  float tone_hz;
+  float wave_period;
   int16_t *samples;
 };
 

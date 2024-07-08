@@ -31,7 +31,7 @@ static void OutputGameSound(GameSoundBuffer *sound_buffer) {
   int16_t *samples = sound_buffer->samples;
   uint16_t tone_volume = 3000;
 
-  int wave_period = sound_buffer->samples_per_second / sound_buffer->tone_hz;
+  float wave_period = sound_buffer->samples_per_second / sound_buffer->tone_hz;
 
   for (int i = 0; i < sound_buffer->sample_count; ++i) {
     float sin_value = sinf(t_sin);
@@ -39,7 +39,7 @@ static void OutputGameSound(GameSoundBuffer *sound_buffer) {
     *samples++ = sample_value;
     *samples++ = sample_value;
 
-    t_sin += 2.0f * PI * 1.0f / static_cast<float>(wave_period);
+    t_sin += 2.0f * PI * 1.0f / wave_period;
   }
 }
 
@@ -51,8 +51,8 @@ void UpdateAndRender(GameBuffer *buffer, GameSoundBuffer *sound_buffer,
   ControllerInput input0 = game_input->controllers[0];
 
   if (input0.is_analog) {
-    sound_buffer->tone_hz = 256 + (128 * input0.end_y);
-    x_offset = 4 * input0.end_x;
+    sound_buffer->tone_hz = 256.0f + (128.0f * input0.end_y);
+    x_offset = 4 * static_cast<int>(input0.end_x);
   } else {
     // asdklasj
   }
