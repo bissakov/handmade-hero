@@ -13,7 +13,7 @@
 
 #include <cstdint>
 
-#include "../handmade-hero/handmade-hero.h"
+#include "../../src/handmade-hero/handmade-hero.h"
 
 typedef DWORD WINAPI XInputGetStateT(DWORD controller_idx,
                                      XINPUT_STATE *controller_state);

@@ -5,7 +5,7 @@
 // Handmade Hero License by Casey Muratori
 // See the end of file for license information
 
-#include "../handmade-hero/handmade-hero.h"
+#include "../../src/handmade-hero/handmade-hero.h"
 
 #include <cmath>
 #include <cstdint>

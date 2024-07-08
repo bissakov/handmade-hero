@@ -5,7 +5,7 @@
 // Handmade Hero License by Casey Muratori
 // See the end of file for license information
 
-#include "../win32/win32-handmade-hero.h"
+#include "../../src/win32/win32-handmade-hero.h"
 
 #include <dsound.h>
 #include <math.h>
@@ -16,7 +16,7 @@
 #include <cstdint>
 #include <cstdio>
 
-#include "../handmade-hero/handmade-hero.h"
+#include "../../src/handmade-hero/handmade-hero.h"
 
 static XInputGetStateT *DyXInputGetState;
 static XInputSetStateT *DyXInputSetState;
