@@ -12,7 +12,7 @@
 
 #define PI 3.14159265359f
 
-void Render(GameBuffer *buffer, int x_offset, int y_offset) {
+static void Render(GameBuffer *buffer, int x_offset, int y_offset) {
   uint8_t *row = reinterpret_cast<uint8_t *>(buffer->memory);
   for (int y = 0; y < buffer->height; ++y) {
     uint32_t *pixel = reinterpret_cast<uint32_t *>(row);
@@ -26,10 +26,7 @@ void Render(GameBuffer *buffer, int x_offset, int y_offset) {
   }
 }
 
-void OutputGameSound(GameSoundBuffer *sound_buffer) {
-  // DWORD sample_count = region1_size / sound_output->bytes_per_sample;
-  // int16_t *sample_out = reinterpret_cast<int16_t *>(region1);
-
+static void OutputGameSound(GameSoundBuffer *sound_buffer) {
   static float t_sin;
   int16_t *samples = sound_buffer->samples;
   uint16_t tone_volume = 3000;
@@ -46,15 +43,23 @@ void OutputGameSound(GameSoundBuffer *sound_buffer) {
   }
 }
 
-void UpdateAndRender(GameBuffer *buffer, GameSoundBuffer *sound_buffer) {
+void UpdateAndRender(GameBuffer *buffer, GameSoundBuffer *sound_buffer,
+                     GameInput *game_input) {
   static int x_offset = 0;
   static int y_offset = 0;
 
-  // if (input.is_analog) {
-  //   // askjld
-  // } else {
-  //   // asdklasj
-  // }
+  ControllerInput input0 = game_input->controllers[0];
+
+  if (input0.is_analog) {
+    sound_buffer->tone_hz = 256 + (128 * input0.end_y);
+    x_offset = 4 * input0.end_x;
+  } else {
+    // asdklasj
+  }
+
+  if (input0.a_button.ended_down) {
+    y_offset += 10;
+  }
 
   OutputGameSound(sound_buffer);
   Render(buffer, x_offset, y_offset);

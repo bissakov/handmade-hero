@@ -28,7 +28,7 @@ static const int DEFAULT_HEIGHT = 1080;
 
 static Buffer buffer;
 
-bool InitXInput() {
+static bool InitXInput() {
   HMODULE xinput_lib = LoadLibraryW(L"xinput1_4.dll");
   if (!xinput_lib) {
     return false;
@@ -47,7 +47,8 @@ bool InitXInput() {
   return true;
 }
 
-bool InitDirectSound(HWND window, int samples_per_second, int buffer_size) {
+static bool InitDirectSound(HWND window, int samples_per_second,
+                            int buffer_size) {
   HMODULE direct_sound_lib = LoadLibraryW(L"dsound.dll");
   if (!direct_sound_lib) {
     return false;
@@ -111,7 +112,7 @@ bool InitDirectSound(HWND window, int samples_per_second, int buffer_size) {
   return true;
 }
 
-Dimensions GetDimensions(HWND window) {
+static Dimensions GetDimensions(HWND window) {
   RECT rect;
   GetClientRect(window, &rect);
   int width = rect.right - rect.left;
@@ -119,7 +120,7 @@ Dimensions GetDimensions(HWND window) {
   return {width, height};
 }
 
-void ResizeDIBSection(Buffer *buffer, int width, int height) {
+static void ResizeDIBSection(Buffer *buffer, int width, int height) {
   if (buffer->memory) {
     VirtualFree(buffer->memory, 0, MEM_RELEASE);
   }
@@ -153,8 +154,8 @@ static void DisplayBuffer(HDC device_context, int window_x, int window_y,
                 &buffer->info, DIB_RGB_COLORS, SRCCOPY);
 }
 
-LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
-                           LPARAM l_param) {
+static LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
+                                  LPARAM l_param) {
   LRESULT result = 0;
 
   switch (message) {
@@ -257,19 +258,35 @@ LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
   return result;
 }
 
-void HandleGamepad() {
+static void ProcessXInputDigitalButton(ButtonState *old_state,
+                                       ButtonState *new_state,
+                                       DWORD xinput_button_state,
+                                       DWORD button_bit) {
+  new_state->ended_down = (xinput_button_state & button_bit) == button_bit;
+  new_state->half_transition_count =
+      (old_state->ended_down != new_state->ended_down) ? 1 : 0;
+}
+
+static void HandleGamepad(GameInput *old_input, GameInput *new_input) {
   if (!DyXInputGetState || !DyXInputSetState) {
     return;
   }
 
-  // XINPUT_VIBRATION vibration;
-  for (int controller_idx = 0; controller_idx < XUSER_MAX_COUNT;
+  int max_supported_controller_count = ArraySize(old_input->controllers);
+  int max_controller_count = (XUSER_MAX_COUNT > max_supported_controller_count)
+                                 ? max_supported_controller_count
+                                 : XUSER_MAX_COUNT;
+
+  for (int controller_idx = 0; controller_idx < max_controller_count;
        ++controller_idx) {
+    ControllerInput *old_controller = &old_input->controllers[controller_idx];
+    ControllerInput *new_controller = &new_input->controllers[controller_idx];
+
+    old_controller->is_analog = true;
+    new_controller->is_analog = true;
+
     XINPUT_STATE controller_state;
     if (DyXInputGetState(controller_idx, &controller_state) == ERROR_SUCCESS) {
-      // vibration.wLeftMotorSpeed = 0;
-      // vibration.wRightMotorSpeed = 0;
-
       XINPUT_GAMEPAD *gamepad = &controller_state.Gamepad;
 
       bool up = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_UP;
@@ -277,15 +294,54 @@ void HandleGamepad() {
       bool left = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
       bool right = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
 
-      // vibration.wLeftMotorSpeed = 65535;
-      // DyXInputSetState(controller_idx, &vibration);
+      float stick_x = (gamepad->sThumbLX < 0)
+                          ? static_cast<float>(gamepad->sThumbLX) / 32768.0f
+                          : static_cast<float>(gamepad->sThumbLX) / 32767.0f;
+      new_controller->start_x = old_controller->end_x;
+
+      new_controller->min_x = stick_x;
+      new_controller->max_x = stick_x;
+      new_controller->end_x = stick_x;
+
+      float stick_y = (gamepad->sThumbLY < 0)
+                          ? static_cast<float>(gamepad->sThumbLY) / 32768.0f
+                          : static_cast<float>(gamepad->sThumbLY) / 32767.0f;
+      new_controller->start_y = old_controller->end_y;
+
+      new_controller->min_y = stick_y;
+      new_controller->max_y = stick_y;
+      new_controller->end_y = stick_y;
+
+      DWORD button_bits[] = {
+          XINPUT_GAMEPAD_Y,
+          XINPUT_GAMEPAD_A,
+          XINPUT_GAMEPAD_X,
+          XINPUT_GAMEPAD_B,
+          XINPUT_GAMEPAD_LEFT_SHOULDER,
+          XINPUT_GAMEPAD_RIGHT_SHOULDER,
+      };
+
+      assert(ArraySize(button_bits) == ArraySize(old_controller->buttons));
+
+      for (int i = 0; i < ArraySize(old_controller->buttons); ++i) {
+        ProcessXInputDigitalButton(&old_controller->buttons[i],
+                                   &new_controller->buttons[i],
+                                   gamepad->wButtons, button_bits[i]);
+      }
+
     } else {
       // TODO(bissakov): Controller is not available
     }
   }
 }
 
-bool ClearBuffer(SoundOutput *sound_output) {
+static void SwapInputs(GameInput *old_input, GameInput *new_input) {
+  GameInput *temp_input = new_input;
+  new_input = old_input;
+  old_input = temp_input;
+}
+
+static bool ClearBuffer(SoundOutput *sound_output) {
   void *region1;
   void *region2;
   DWORD region1_size;
@@ -316,9 +372,9 @@ bool ClearBuffer(SoundOutput *sound_output) {
   return true;
 }
 
-bool FillSoundBuffer(SoundOutput *sound_output, uint32_t byte_to_lock,
-                     uint32_t bytes_to_write,
-                     GameSoundBuffer *game_sound_buffer) {
+static bool FillSoundBuffer(SoundOutput *sound_output, uint32_t byte_to_lock,
+                            uint32_t bytes_to_write,
+                            GameSoundBuffer *game_sound_buffer) {
   void *region1;
   void *region2;
   DWORD region1_size;
@@ -422,6 +478,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
       VirtualAlloc(0, sound_output.secondary_buffer_size,
                    MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
 
+  GameInput old_input = {};
+  GameInput new_input = {};
+
   while (RUNNING) {
     MSG message;
     while (PeekMessageW(&message, 0, 0, 0, PM_REMOVE)) {
@@ -433,7 +492,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
       DispatchMessageW(&message);
     }
 
-    HandleGamepad();
+    HandleGamepad(&old_input, &new_input);
 
     DWORD byte_to_lock = 0;
     DWORD target_cursor = 0;
@@ -476,7 +535,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     game_sound_buffer.wave_period = sound_output.wave_period;
     game_sound_buffer.samples = samples;
 
-    UpdateAndRender(&game_buffer, &game_sound_buffer);
+    UpdateAndRender(&game_buffer, &game_sound_buffer, &new_input);
 
     if (sound_is_valid) {
       FillSoundBuffer(&sound_output, byte_to_lock, bytes_to_write,
@@ -506,6 +565,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
 
     last_counter = end_counter;
     last_cycle_count = end_cycle_count;
+
+    SwapInputs(&old_input, &new_input);
   }
 
   ReleaseDC(window, device_context);

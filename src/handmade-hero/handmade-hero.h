@@ -5,9 +5,9 @@
 // Handmade Hero License by Casey Muratori
 // See the end of file for license information
 
-#ifndef HANDMADE_HERO_H_
-
 #include <cstdint>
+
+#ifndef HANDMADE_HERO_H_
 
 struct GameBuffer {
   void *memory;
@@ -25,11 +25,49 @@ struct GameSoundBuffer {
   int16_t *samples;
 };
 
-void Render(GameBuffer *buffer, int x_offset, int y_offset);
+struct ButtonState {
+  int half_transition_count;
+  bool ended_down;
+};
 
-void OutputGameSound(GameSoundBuffer *sound_buffer);
+struct ControllerInput {
+  bool is_analog;
 
-void UpdateAndRender(GameBuffer *buffer, GameSoundBuffer *sound_buffer);
+  float start_x;
+  float start_y;
+
+  float min_x;
+  float min_y;
+
+  float max_x;
+  float max_y;
+
+  float end_x;
+  float end_y;
+
+  union {
+    ButtonState buttons[6];
+    struct {
+      ButtonState y_button;
+      ButtonState a_button;
+      ButtonState x_button;
+      ButtonState b_button;
+      ButtonState left_shoulder;
+      ButtonState right_shoulder;
+    };
+  };
+};
+
+struct GameInput {
+  ControllerInput controllers[4];
+};
+
+static inline void Render(GameBuffer *buffer, int x_offset, int y_offset);
+
+static inline void OutputGameSound(GameSoundBuffer *sound_buffer);
+
+void UpdateAndRender(GameBuffer *buffer, GameSoundBuffer *sound_buffer,
+                     GameInput *game_input);
 
 #define HANDMADE_HERO_H_
 #endif  // HANDMADE_HERO_H_
