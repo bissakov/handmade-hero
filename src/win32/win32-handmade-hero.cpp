@@ -8,6 +8,7 @@
 #include "../../src/win32/win32-handmade-hero.h"
 
 #include <dsound.h>
+#include <fileapi.h>
 #include <math.h>
 #include <windows.h>
 #include <xinput.h>
@@ -407,6 +408,63 @@ static bool FillSoundBuffer(SoundOutput *sound_output, uint32_t byte_to_lock,
   SOUND_BUFFER->Unlock(region1, region1_size, region2, region2_size);
 
   return true;
+}
+
+static inline void *ReadEntireFileDebug(wchar_t *file_path) {
+  void *result = 0;
+
+  HANDLE file_handle = CreateFileW(file_path, GENERIC_READ, FILE_SHARE_READ, 0,
+                                   OPEN_EXISTING, 0, 0);
+  if (file_handle == INVALID_HANDLE_VALUE) {
+    CloseHandle(file_handle);
+    return result;
+  }
+
+  LARGE_INTEGER file_size;
+
+  if (!GetFileSizeEx(file_handle, &file_size)) {
+    CloseHandle(file_handle);
+    return result;
+  }
+
+  Assert(file_size.QuadPart <= 0xFF'FF'FF'FF);
+  uint32_t file_size32 = (uint32_t)(file_size.QuadPart);
+
+  result =
+      VirtualAlloc(0, file_size32, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+  if (!result) {
+    FreeFileMemoryDebug(&result);
+    CloseHandle(file_handle);
+    return result;
+  }
+
+  DWORD bytes_read;
+
+  if (!(ReadFile(file_handle, result, file_size32, &bytes_read, 0) &&
+        file_size32 == bytes_read)) {
+    FreeFileMemoryDebug(&result);
+    CloseHandle(file_handle);
+    return result;
+  }
+
+  CloseHandle(file_handle);
+
+  return result;
+}
+
+static inline void FreeFileMemoryDebug(void **memory) {
+  if (!memory || !*memory) {
+    return;
+  }
+
+  VirtualFree(*memory, 0, MEM_RELEASE);
+  *memory = 0;
+
+  Assert(!*memory);
+}
+
+static inline bool WriteEntireFileDebug(wchar_t *file_path,
+                                        uint32_t memory_size, void *memory) {
 }
 
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int) {

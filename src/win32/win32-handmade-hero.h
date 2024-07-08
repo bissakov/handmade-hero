@@ -85,6 +85,14 @@ static inline bool FillSoundBuffer(SoundOutput *sound_output,
 
 static inline void SwapInputs(GameInput *old_input, GameInput *new_input);
 
+#if DEV
+static inline void *ReadEntireFileDebug(wchar_t *file_path);
+static inline void FreeFileMemoryDebug(void **memory);
+
+static inline bool WriteEntireFileDebug(wchar_t *file_path,
+                                        uint32_t memory_size, void *memory);
+#endif
+
 #define WIN32_HANDMADE_HERO_H_
 #endif  // WIN32_HANDMADE_HERO_H_
 
