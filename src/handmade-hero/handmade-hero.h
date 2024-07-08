@@ -16,11 +16,13 @@
 #define Gigabytes(value) (Megabytes(value) * 1024)
 #define Terabytes(value) (Gigabytes(value) * 1024)
 
+#define DEBUG 1
+
 #if DEBUG
-#define Assert(expression) \
-  if (!(expression)) {     \
-    *reinterpret_cast<int *>(0) = 0;
-}
+#define Assert(expression)           \
+  if (!(expression)) {               \
+    *reinterpret_cast<int *>(0) = 0; \
+  }
 #else
 #define Assert(expression)
 #endif
