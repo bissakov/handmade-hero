@@ -481,9 +481,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int) {
   }
 
 #if DEV
-  LPVOID base_address = 0;
-#else
   LPVOID base_address = (LPVOID)Terabytes((uint64_t)2);
+#else
+  LPVOID base_address = 0;
 #endif
 
   GameMemory memory = {};

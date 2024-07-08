@@ -15,11 +15,7 @@
 
 #include "../../src/handmade-hero/handmade-hero.h"
 
-#define ArraySize(arr) (sizeof(arr) / sizeof((arr)[0]))
-
-#define Kilobytes(value) ((value) * 1024)
-#define Megabytes(value) (Kilobytes(value) * 1024)
-#define Gigabytes(value) (Megabytes(value) * 1024)
+#define DEV 1
 
 typedef DWORD WINAPI XInputGetStateT(DWORD controller_idx,
                                      XINPUT_STATE *controller_state);
