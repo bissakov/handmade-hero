@@ -502,13 +502,12 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
       return 1;
     }
     FreeFileMemoryDebug(&result.content);
-
-    if (!InitXInput()) {
-      OutputDebugStringW(L"XInput initialization failed\n");
-      return ERROR_DEVICE_NOT_CONNECTED;
-    }
   }
 
+  if (!InitXInput()) {
+    OutputDebugStringW(L"XInput initialization failed\n");
+    return ERROR_DEVICE_NOT_CONNECTED;
+  }
   ResizeDIBSection(&BUFFER, DEFAULT_WIDTH, DEFAULT_HEIGHT);
 
   WNDCLASSW window_class = {};
