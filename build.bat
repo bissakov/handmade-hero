@@ -15,5 +15,5 @@ if "%ARCH%"=="32" (
 )
 
 pushd build
-cl -nologo -Oi -GR- -EHa- -W4 -FC -Z7 -wd4201 -wd4127 ../src/win32/win32-handmade-hero.cpp user32.lib gdi32.lib xinput.lib ../src/handmade-hero/handmade-hero.cpp
+cl -nologo -Oi -GR- -EHa- -MT -Gm- -W4 -FC -Z7 -Fmwib32_handmade_hero.map -wd4201 -wd4127 -wd4100 ../src/win32/win32-handmade-hero.cpp user32.lib gdi32.lib xinput.lib ../src/handmade-hero/handmade-hero.cpp /link -opt:ref
 popd
