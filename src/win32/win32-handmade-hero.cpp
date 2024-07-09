@@ -29,7 +29,7 @@ static const int DEFAULT_HEIGHT = 1080;
 
 static Buffer BUFFER;
 
-static bool InitXInput() {
+static inline bool InitXInput() {
   HMODULE xinput_lib = LoadLibraryW(L"xinput1_4.dll");
   if (!xinput_lib) {
     return false;
@@ -48,8 +48,8 @@ static bool InitXInput() {
   return true;
 }
 
-static bool InitDirectSound(HWND window, int samples_per_second,
-                            int buffer_size) {
+static inline bool InitDirectSound(HWND window, int samples_per_second,
+                                   int buffer_size) {
   HMODULE direct_sound_lib = LoadLibraryW(L"dsound.dll");
   if (!direct_sound_lib) {
     return false;
@@ -113,7 +113,7 @@ static bool InitDirectSound(HWND window, int samples_per_second,
   return true;
 }
 
-static Dimensions GetDimensions(HWND window) {
+static inline Dimensions GetDimensions(HWND window) {
   RECT rect;
   GetClientRect(window, &rect);
   int width = rect.right - rect.left;
@@ -121,7 +121,7 @@ static Dimensions GetDimensions(HWND window) {
   return {width, height};
 }
 
-static void ResizeDIBSection(Buffer *buffer, int width, int height) {
+static inline void ResizeDIBSection(Buffer *buffer, int width, int height) {
   if (buffer->memory) {
     VirtualFree(buffer->memory, 0, MEM_RELEASE);
   }
@@ -147,15 +147,16 @@ static void ResizeDIBSection(Buffer *buffer, int width, int height) {
   buffer->pitch = buffer->width * buffer->bytes_per_pixel;
 }
 
-static void DisplayBuffer(HDC device_context, int window_x, int window_y,
-                          int window_width, int window_height, Buffer *buffer) {
+static inline void DisplayBuffer(HDC device_context, int window_x, int window_y,
+                                 int window_width, int window_height,
+                                 Buffer *buffer) {
   StretchDIBits(device_context, window_x, window_y, window_width, window_height,
                 0, 0, buffer->width, buffer->height, buffer->memory,
                 &buffer->info, DIB_RGB_COLORS, SRCCOPY);
 }
 
-static LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
-                                  LPARAM l_param) {
+static inline LRESULT MainWindowCallback(HWND window, UINT message,
+                                         WPARAM w_param, LPARAM l_param) {
   LRESULT result = 0;
 
   switch (message) {
@@ -259,16 +260,16 @@ static LRESULT MainWindowCallback(HWND window, UINT message, WPARAM w_param,
   return result;
 }
 
-static void ProcessXInputDigitalButton(ButtonState *old_state,
-                                       ButtonState *new_state,
-                                       DWORD xinput_button_state,
-                                       DWORD button_bit) {
+static inline void ProcessXInputDigitalButton(ButtonState *old_state,
+                                              ButtonState *new_state,
+                                              DWORD xinput_button_state,
+                                              DWORD button_bit) {
   new_state->ended_down = (xinput_button_state & button_bit) == button_bit;
   new_state->half_transition_count =
       (old_state->ended_down != new_state->ended_down) ? 1 : 0;
 }
 
-static void HandleGamepad(GameInput *old_input, GameInput *new_input) {
+static inline void HandleGamepad(GameInput *old_input, GameInput *new_input) {
   if (!DyXInputGetState || !DyXInputSetState) {
     return;
   }
@@ -336,13 +337,13 @@ static void HandleGamepad(GameInput *old_input, GameInput *new_input) {
   }
 }
 
-static void SwapInputs(GameInput *old_input, GameInput *new_input) {
+static inline void SwapInputs(GameInput *old_input, GameInput *new_input) {
   GameInput temp_input = *new_input;
   *new_input = *old_input;
   *old_input = temp_input;
 }
 
-static bool ClearBuffer(SoundOutput *sound_output) {
+static inline bool ClearBuffer(SoundOutput *sound_output) {
   void *region1;
   void *region2;
   DWORD region1_size;
@@ -373,9 +374,10 @@ static bool ClearBuffer(SoundOutput *sound_output) {
   return true;
 }
 
-static bool FillSoundBuffer(SoundOutput *sound_output, uint32_t byte_to_lock,
-                            uint32_t bytes_to_write,
-                            GameSoundBuffer *game_sound_buffer) {
+static inline bool FillSoundBuffer(SoundOutput *sound_output,
+                                   uint32_t byte_to_lock,
+                                   uint32_t bytes_to_write,
+                                   GameSoundBuffer *game_sound_buffer) {
   void *region1;
   void *region2;
   DWORD region1_size;
@@ -439,10 +441,10 @@ static inline void *ReadEntireFileDebug(wchar_t *file_path) {
   }
 
   DWORD bytes_read;
-
-  if (!(ReadFile(file_handle, result, file_size32, &bytes_read, 0) &&
-        file_size32 == bytes_read)) {
-    FreeFileMemoryDebug(&result);
+  if (!(ReadFile(file_handle, result.content, result.file_size, &bytes_read,
+                 0) &&
+        result.file_size == bytes_read)) {
+    FreeFileMemoryDebug(&result.content);
     CloseHandle(file_handle);
     return result;
   }
