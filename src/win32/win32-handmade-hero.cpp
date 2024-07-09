@@ -580,7 +580,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int) {
 
   GameMemory memory = {};
   memory.permanent_storage_size = Megabytes(64);
-  memory.transient_storage_size = Gigabytes((uint64_t)4);
+  memory.transient_storage_size = Gigabytes((uint64_t)1);
   uint64_t total_memory_size =
       memory.permanent_storage_size + memory.transient_storage_size;
 
