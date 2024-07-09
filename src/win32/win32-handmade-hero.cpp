@@ -485,7 +485,8 @@ static inline bool WriteEntireFileDebug(wchar_t *file_path,
   return bytes_written == memory_size;
 }
 
-int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int) {
+int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
+                     LPSTR command_line, int show_code) {
   {
     // file read and write test
 
