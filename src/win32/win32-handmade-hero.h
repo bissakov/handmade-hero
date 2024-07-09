@@ -19,9 +19,9 @@
 #define DEBUG 1
 
 #if DEBUG
-#define Assert(expression) \
-  if (!expression) {       \
-    __debugbreak();        \
+#define Assert(expression)              \
+  if (!static_cast<bool>(expression)) { \
+    __debugbreak();                     \
   }
 #else
 #define Assert(expression)
