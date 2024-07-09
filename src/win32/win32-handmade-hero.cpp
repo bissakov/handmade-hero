@@ -192,7 +192,7 @@ static inline LRESULT MainWindowCallback(HWND window, UINT message,
     }
 
     case WM_SYSKEYDOWN: {
-      WPARAM vk_code = w_param;
+      uint32_t vk_code = (uint32_t)w_param;
 
       bool alt_key_down = (l_param & (1 << 29)) != 0;
       if ((vk_code == VK_F4) && alt_key_down) {
@@ -212,7 +212,7 @@ static inline LRESULT MainWindowCallback(HWND window, UINT message,
     }
 
     case WM_KEYUP: {
-      WPARAM vk_code = w_param;
+      uint32_t vk_code = (uint32_t)w_param;
 
       bool was_key_down = (l_param & (1 << 30)) != 0;
       bool is_key_down = (l_param & (1 << 31)) == 0;
