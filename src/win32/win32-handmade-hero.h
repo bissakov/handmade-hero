@@ -75,7 +75,7 @@ static inline void ProcessXInputDigitalButton(ButtonState *old_state,
                                               ButtonState *new_state,
                                               DWORD xinput_button_state,
                                               DWORD button_bit);
-static inline void HandleGamepad();
+static inline void HandleGamepad(GameInput *old_input, GameInput *new_input);
 
 static inline bool ClearBuffer(SoundOutput *sound_output);
 static inline bool FillSoundBuffer(SoundOutput *sound_output,
