@@ -414,7 +414,6 @@ static inline bool FillSoundBuffer(SoundOutput *sound_output,
 
 static inline FileResult ReadEntireFileDebug(wchar_t *file_path) {
   FileResult result = {};
-  result.content = 0;
 
   HANDLE file_handle = CreateFileW(file_path, GENERIC_READ, FILE_SHARE_READ, 0,
                                    OPEN_EXISTING, 0, 0);
