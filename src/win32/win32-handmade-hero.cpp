@@ -440,7 +440,7 @@ static inline FileResult ReadEntireFileDebug(wchar_t *file_path) {
     return result;
   }
 
-  DWORD bytes_read;
+  DWORD bytes_read = 0;
   if (!(ReadFile(file_handle, result.content, result.file_size, &bytes_read,
                  0) &&
         result.file_size == bytes_read)) {
@@ -474,7 +474,7 @@ static inline bool WriteEntireFileDebug(wchar_t *file_path,
     return false;
   }
 
-  DWORD bytes_written;
+  DWORD bytes_written = 0;
   if (!WriteFile(file_handle, memory, memory_size, &bytes_written, 0)) {
     CloseHandle(file_handle);
     return false;
