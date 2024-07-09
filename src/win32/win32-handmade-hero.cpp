@@ -412,8 +412,9 @@ static inline bool FillSoundBuffer(SoundOutput *sound_output,
   return true;
 }
 
-static inline void *ReadEntireFileDebug(wchar_t *file_path) {
-  void *result = 0;
+static inline FileResult ReadEntireFileDebug(wchar_t *file_path) {
+  FileResult result = {};
+  result.content = 0;
 
   HANDLE file_handle = CreateFileW(file_path, GENERIC_READ, FILE_SHARE_READ, 0,
                                    OPEN_EXISTING, 0, 0);
@@ -430,12 +431,12 @@ static inline void *ReadEntireFileDebug(wchar_t *file_path) {
   }
 
   Assert(file_size.QuadPart <= 0xFF'FF'FF'FF);
-  uint32_t file_size32 = (uint32_t)(file_size.QuadPart);
+  result.file_size = (uint32_t)(file_size.QuadPart);
 
-  result =
-      VirtualAlloc(0, file_size32, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-  if (!result) {
-    FreeFileMemoryDebug(&result);
+  result.content = VirtualAlloc(0, result.file_size, MEM_RESERVE | MEM_COMMIT,
+                                PAGE_READWRITE);
+  if (!result.content) {
+    FreeFileMemoryDebug(&result.content);
     CloseHandle(file_handle);
     return result;
   }

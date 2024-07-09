@@ -58,6 +58,11 @@ struct SoundOutput {
   int latency_sample_count = 0;
 };
 
+struct FileResult {
+  uint32_t file_size;
+  void *content;
+};
+
 static inline bool InitXInput();
 static inline bool InitDirectSound(HWND window, int samples_per_second,
                                    int buffer_size);
@@ -86,7 +91,7 @@ static inline bool FillSoundBuffer(SoundOutput *sound_output,
 static inline void SwapInputs(GameInput *old_input, GameInput *new_input);
 
 #if DEV
-static inline void *ReadEntireFileDebug(wchar_t *file_path);
+static inline FileResult ReadEntireFileDebug(wchar_t *file_path);
 static inline void FreeFileMemoryDebug(void **memory);
 
 static inline bool WriteEntireFileDebug(wchar_t *file_path,
