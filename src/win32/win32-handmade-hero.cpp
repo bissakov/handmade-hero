@@ -468,6 +468,21 @@ static inline void FreeFileMemoryDebug(void **memory) {
 
 static inline bool WriteEntireFileDebug(wchar_t *file_path,
                                         uint32_t memory_size, void *memory) {
+  HANDLE file_handle =
+      CreateFileW(file_path, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+  if (file_handle == INVALID_HANDLE_VALUE) {
+    CloseHandle(file_handle);
+    return false;
+  }
+
+  DWORD bytes_written;
+  if (!WriteFile(file_handle, memory, memory_size, &bytes_written, 0)) {
+    CloseHandle(file_handle);
+    return false;
+  }
+
+  CloseHandle(file_handle);
+  return bytes_written == memory_size;
 }
 
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int) {
