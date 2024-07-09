@@ -585,8 +585,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int) {
       memory.permanent_storage_size + memory.transient_storage_size;
 
   memory.permanent_storage =
-      VirtualAlloc(base_address, total_memory_size, MEM_RESERVE | MEM_COMMIT,
-                   PAGE_READWRITE);
+      VirtualAlloc(base_address, static_cast<size_t>(total_memory_size),
+                   MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   memory.transient_storage =
       reinterpret_cast<uint8_t *>(memory.permanent_storage) +
       memory.permanent_storage_size;
