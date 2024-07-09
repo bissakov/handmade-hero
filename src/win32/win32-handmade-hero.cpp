@@ -155,8 +155,9 @@ static inline void DisplayBuffer(HDC device_context, int window_x, int window_y,
                 &buffer->info, DIB_RGB_COLORS, SRCCOPY);
 }
 
-static inline LRESULT MainWindowCallback(HWND window, UINT message,
-                                         WPARAM w_param, LPARAM l_param) {
+static inline LRESULT CALLBACK MainWindowCallback(HWND window, UINT message,
+                                                  WPARAM w_param,
+                                                  LPARAM l_param) {
   LRESULT result = 0;
 
   switch (message) {
