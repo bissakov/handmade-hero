@@ -486,9 +486,26 @@ static inline bool WriteEntireFileDebug(wchar_t *file_path,
 }
 
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int) {
-  if (!InitXInput()) {
-    OutputDebugStringW(L"XInput initialization failed\n");
-    return ERROR_DEVICE_NOT_CONNECTED;
+  {
+    // file read and write test
+
+    wchar_t file_path[] = L"D:\\Work\\Bear\\CMakeCache.txt";
+    FileResult result = ReadEntireFileDebug(file_path);
+    if (!result.content) {
+      return 1;
+    }
+    wchar_t dup_file_path[] = L"D:\\Work\\Bear\\CMakeCache2.txt";
+    if (!WriteEntireFileDebug(dup_file_path, result.file_size,
+                              result.content)) {
+      FreeFileMemoryDebug(&result.content);
+      return 1;
+    }
+    FreeFileMemoryDebug(&result.content);
+
+    if (!InitXInput()) {
+      OutputDebugStringW(L"XInput initialization failed\n");
+      return ERROR_DEVICE_NOT_CONNECTED;
+    }
   }
 
   ResizeDIBSection(&BUFFER, DEFAULT_WIDTH, DEFAULT_HEIGHT);
