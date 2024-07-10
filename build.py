@@ -58,19 +58,20 @@ def create_compile_command(
     # Source files
     compile_command.extend(
         [
-            "../src/win32/win32-handmade-hero.cpp",
-            "../src/handmade-hero/handmade-hero.cpp",
-            "../src/win32/win32-input.cpp",
-            "../src/win32/win32-file-io.cpp",
+            "../src/win32/win32-handmade-hero.cpp",  # Win32 entry point
+            "../src/win32/win32-input.cpp",  # Win32 input handling
+            "../src/win32/win32-file-io.cpp",  # Win32 file I/O
+            "../src/win32/win32-sound.cpp",  # Win32 sound handling
+            "../src/handmade-hero/handmade-hero.cpp",  # Game code
         ]
     )
 
     # Default libraries
     compile_command.extend(
         [
-            "user32.lib",
-            "gdi32.lib",
-            "xinput.lib",
+            "user32.lib",  # User interface
+            "gdi32.lib",  # Graphics device interface
+            "xinput.lib",  # XInput controller support
         ]
     )
 

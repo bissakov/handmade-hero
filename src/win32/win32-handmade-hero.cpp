@@ -18,100 +18,15 @@
 #include <cstdio>
 
 #include "../../src/handmade-hero/handmade-hero.h"
-
-static XInputGetStateT *DyXInputGetState;
-static XInputSetStateT *DyXInputSetState;
-static IDirectSoundBuffer *SOUND_BUFFER;
+#include "../../src/win32/win32-file-io.h"
+#include "../../src/win32/win32-input.h"
+#include "../../src/win32/win32-sound.h"
 
 static bool RUNNING = true;
 static const int DEFAULT_WIDTH = 1920;
 static const int DEFAULT_HEIGHT = 1080;
 
 static Buffer BUFFER;
-
-static inline bool InitXInput() {
-  HMODULE xinput_lib = LoadLibraryW(L"xinput1_4.dll");
-  if (!xinput_lib) {
-    return false;
-  }
-
-  DyXInputGetState = reinterpret_cast<XInputGetStateT *>(
-      GetProcAddress(xinput_lib, "XInputGetState"));
-  DyXInputSetState = reinterpret_cast<XInputSetStateT *>(
-      GetProcAddress(xinput_lib, "XInputSetState"));
-
-  if (!DyXInputGetState || !DyXInputSetState) {
-    return false;
-  }
-
-  FreeLibrary(xinput_lib);
-  return true;
-}
-
-static inline bool InitDirectSound(HWND window, int samples_per_second,
-                                   int buffer_size) {
-  HMODULE direct_sound_lib = LoadLibraryW(L"dsound.dll");
-  if (!direct_sound_lib) {
-    return false;
-  }
-
-  DirectSoundCreateT *DyDirectSoundCreate =
-      reinterpret_cast<DirectSoundCreateT *>(
-          GetProcAddress(direct_sound_lib, "DirectSoundCreate"));
-
-  FreeLibrary(direct_sound_lib);
-
-  IDirectSound *direct_sound;
-  if (!DyDirectSoundCreate ||
-      !SUCCEEDED(DyDirectSoundCreate(0, &direct_sound, 0))) {
-    return false;
-  }
-
-  if (!SUCCEEDED(direct_sound->SetCooperativeLevel(window, DSSCL_PRIORITY))) {
-    return false;
-  }
-
-  IDirectSoundBuffer *primary_buffer;
-  {
-    DSBUFFERDESC buffer_desc = {};
-    buffer_desc.dwSize = sizeof(buffer_desc);
-    buffer_desc.dwFlags = DSBCAPS_PRIMARYBUFFER;
-
-    if (!SUCCEEDED(direct_sound->CreateSoundBuffer(&buffer_desc,
-                                                   &primary_buffer, 0))) {
-      return false;
-    }
-  }
-
-  WAVEFORMATEX wave_format = {};
-  wave_format.wFormatTag = WAVE_FORMAT_PCM;
-  wave_format.nChannels = 2;
-  wave_format.nSamplesPerSec = samples_per_second;
-  wave_format.wBitsPerSample = 16;
-  wave_format.nBlockAlign =
-      (wave_format.nChannels * wave_format.wBitsPerSample) / 8;
-  wave_format.nAvgBytesPerSec =
-      wave_format.nSamplesPerSec * wave_format.nBlockAlign;
-  wave_format.cbSize = 0;
-
-  if (!SUCCEEDED(primary_buffer->SetFormat(&wave_format))) {
-    return false;
-  }
-
-  {
-    DSBUFFERDESC buffer_desc = {};
-    buffer_desc.dwSize = sizeof(buffer_desc);
-    buffer_desc.dwFlags = 0;
-    buffer_desc.dwBufferBytes = buffer_size;
-    buffer_desc.lpwfxFormat = &wave_format;
-    if (!SUCCEEDED(
-            direct_sound->CreateSoundBuffer(&buffer_desc, &SOUND_BUFFER, 0))) {
-      return false;
-    }
-  }
-
-  return true;
-}
 
 static inline Dimensions GetDimensions(HWND window) {
   RECT rect;
@@ -155,6 +70,65 @@ static inline void DisplayBuffer(HDC device_context, int window_x, int window_y,
                 &buffer->info, DIB_RGB_COLORS, SRCCOPY);
 }
 
+static inline bool ProcessPendingMessages(
+    ControllerInput *keyboard_controller) {
+  bool result = true;
+
+  MSG message;
+  while (PeekMessageW(&message, 0, 0, 0, PM_REMOVE)) {
+    switch (message.message) {
+      case WM_SYSKEYDOWN: {
+        uint32_t vk_code = (uint32_t)message.wParam;
+
+        bool alt_key_down =
+            (static_cast<uint32_t>(message.lParam) & (1U << 29)) != 0;
+        if ((vk_code == VK_F4) && alt_key_down) {
+          result = false;
+          break;
+        }
+
+        break;
+      }
+
+      case WM_SYSKEYUP: {
+        break;
+      }
+
+      case WM_KEYDOWN: {
+        // works
+
+        uint32_t vk_code = (uint32_t)message.wParam;
+
+        if (vk_code == VK_ESCAPE) {
+          result = false;
+          break;
+        }
+
+        bool was_key_down =
+            (static_cast<int32_t>(message.lParam) & (1U << 30)) != 0;
+        bool is_key_down =
+            (static_cast<int32_t>(message.lParam) & (1U << 31)) == 0;
+
+        if (was_key_down != is_key_down) {
+          HandleKeyboard(keyboard_controller, vk_code, is_key_down);
+        }
+        break;
+      }
+
+      case WM_KEYUP: {
+        break;
+      }
+
+      default: {
+        TranslateMessage(&message);
+        DispatchMessageW(&message);
+      }
+    }
+  }
+
+  return result;
+}
+
 static inline LRESULT CALLBACK MainWindowCallback(HWND window, UINT message,
                                                   WPARAM w_param,
                                                   LPARAM l_param) {
@@ -192,66 +166,6 @@ static inline LRESULT CALLBACK MainWindowCallback(HWND window, UINT message,
       break;
     }
 
-    case WM_SYSKEYDOWN: {
-      uint32_t vk_code = (uint32_t)w_param;
-
-      bool alt_key_down = (l_param & (1 << 29)) != 0;
-      if ((vk_code == VK_F4) && alt_key_down) {
-        RUNNING = false;
-        break;
-      }
-
-      break;
-    }
-
-    case WM_SYSKEYUP: {
-      break;
-    }
-
-    case WM_KEYDOWN: {
-      break;
-    }
-
-    case WM_KEYUP: {
-      uint32_t vk_code = (uint32_t)w_param;
-
-      bool was_key_down = (l_param & (1 << 30)) != 0;
-      bool is_key_down = (l_param & (1 << 31)) == 0;
-
-      if (was_key_down == is_key_down) {
-        break;
-      }
-
-      if (vk_code == VK_UP) {
-        OutputDebugStringW(L"VK_UP: ");
-        if (is_key_down) {
-          OutputDebugStringW(L"is_key_down ");
-        }
-        if (was_key_down) {
-          OutputDebugStringW(L"was_key_down");
-        }
-        OutputDebugStringA("\n");
-      }
-
-      if (vk_code == VK_DOWN) {
-        OutputDebugStringW(L"VK_UP: ");
-        if (is_key_down) {
-          OutputDebugStringW(L"is_key_down ");
-        }
-        if (was_key_down) {
-          OutputDebugStringW(L"was_key_down");
-        }
-        OutputDebugStringA("\n");
-      }
-
-      if (vk_code == VK_ESCAPE) {
-        RUNNING = false;
-        break;
-      }
-
-      break;
-    }
-
     default: {
       result = DefWindowProcW(window, message, w_param, l_param);
       break;
@@ -261,235 +175,10 @@ static inline LRESULT CALLBACK MainWindowCallback(HWND window, UINT message,
   return result;
 }
 
-static inline void ProcessXInputDigitalButton(ButtonState *old_state,
-                                              ButtonState *new_state,
-                                              DWORD xinput_button_state,
-                                              DWORD button_bit) {
-  new_state->ended_down = (xinput_button_state & button_bit) == button_bit;
-  new_state->half_transition_count =
-      (old_state->ended_down != new_state->ended_down) ? 1 : 0;
-}
-
-static inline void HandleGamepad(GameInput *old_input, GameInput *new_input) {
-  if (!DyXInputGetState || !DyXInputSetState) {
-    return;
-  }
-
-  int max_supported_controller_count = ArraySize(old_input->controllers);
-  int max_controller_count = (XUSER_MAX_COUNT > max_supported_controller_count)
-                                 ? max_supported_controller_count
-                                 : XUSER_MAX_COUNT;
-
-  for (int controller_idx = 0; controller_idx < max_controller_count;
-       ++controller_idx) {
-    ControllerInput *old_controller = &old_input->controllers[controller_idx];
-    ControllerInput *new_controller = &new_input->controllers[controller_idx];
-
-    old_controller->is_analog = true;
-    new_controller->is_analog = true;
-
-    XINPUT_STATE controller_state;
-    if (DyXInputGetState(controller_idx, &controller_state) == ERROR_SUCCESS) {
-      XINPUT_GAMEPAD *gamepad = &controller_state.Gamepad;
-
-      // bool up = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_UP;
-      // bool down = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
-      // bool left = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
-      // bool right = gamepad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
-
-      float stick_x = (gamepad->sThumbLX < 0)
-                          ? static_cast<float>(gamepad->sThumbLX) / 32768.0f
-                          : static_cast<float>(gamepad->sThumbLX) / 32767.0f;
-      new_controller->start_x = old_controller->end_x;
-
-      new_controller->min_x = stick_x;
-      new_controller->max_x = stick_x;
-      new_controller->end_x = stick_x;
-
-      float stick_y = (gamepad->sThumbLY < 0)
-                          ? static_cast<float>(gamepad->sThumbLY) / 32768.0f
-                          : static_cast<float>(gamepad->sThumbLY) / 32767.0f;
-      new_controller->start_y = old_controller->end_y;
-
-      new_controller->min_y = stick_y;
-      new_controller->max_y = stick_y;
-      new_controller->end_y = stick_y;
-
-      DWORD button_bits[] = {
-          XINPUT_GAMEPAD_Y,
-          XINPUT_GAMEPAD_A,
-          XINPUT_GAMEPAD_X,
-          XINPUT_GAMEPAD_B,
-          XINPUT_GAMEPAD_LEFT_SHOULDER,
-          XINPUT_GAMEPAD_RIGHT_SHOULDER,
-      };
-
-      Assert(ArraySize(button_bits) == ArraySize(old_controller->buttons));
-
-      for (int i = 0; i < ArraySize(old_controller->buttons); ++i) {
-        ProcessXInputDigitalButton(&old_controller->buttons[i],
-                                   &new_controller->buttons[i],
-                                   gamepad->wButtons, button_bits[i]);
-      }
-
-    } else {
-      // TODO(bissakov): Controller is not available
-    }
-  }
-}
-
-static inline void SwapInputs(GameInput *old_input, GameInput *new_input) {
-  GameInput temp_input = *new_input;
-  *new_input = *old_input;
-  *old_input = temp_input;
-}
-
-static inline bool ClearBuffer(SoundOutput *sound_output) {
-  void *region1;
-  void *region2;
-  DWORD region1_size;
-  DWORD region2_size;
-
-  HRESULT result =
-      SOUND_BUFFER->Lock(0, sound_output->secondary_buffer_size, &region1,
-                         &region1_size, &region2, &region2_size, 0);
-  if (!SUCCEEDED(result)) {
-    return false;
-  }
-
-  int8_t *dest_sample = reinterpret_cast<int8_t *>(region1);
-  for (DWORD byte_idx = 0; byte_idx < region1_size; ++byte_idx) {
-    *dest_sample++ = 0;
-  }
-
-  dest_sample = reinterpret_cast<int8_t *>(region2);
-  for (DWORD byte_idx = 0; byte_idx < region2_size; ++byte_idx) {
-    *dest_sample++ = 0;
-  }
-
-  if (!SUCCEEDED(
-          SOUND_BUFFER->Unlock(region1, region1_size, region2, region2_size))) {
-    return false;
-  }
-
-  return true;
-}
-
-static inline bool FillSoundBuffer(SoundOutput *sound_output,
-                                   uint32_t byte_to_lock,
-                                   uint32_t bytes_to_write,
-                                   GameSoundBuffer *game_sound_buffer) {
-  void *region1;
-  void *region2;
-  DWORD region1_size;
-  DWORD region2_size;
-
-  HRESULT result =
-      SOUND_BUFFER->Lock(byte_to_lock, bytes_to_write, &region1, &region1_size,
-                         &region2, &region2_size, 0);
-  if (!SUCCEEDED(result)) {
-    return false;
-  }
-
-  DWORD region1_sample_count = region1_size / sound_output->bytes_per_sample;
-  int16_t *dest_sample = reinterpret_cast<int16_t *>(region1);
-  int16_t *source_sample = game_sound_buffer->samples;
-  for (DWORD i = 0; i < region1_sample_count; ++i) {
-    *dest_sample++ = *source_sample++;
-    *dest_sample++ = *source_sample++;
-    ++sound_output->running_sample_idx;
-  }
-
-  DWORD region2_sample_count = region2_size / sound_output->bytes_per_sample;
-  dest_sample = reinterpret_cast<int16_t *>(region2);
-  for (DWORD i = 0; i < region2_sample_count; ++i) {
-    *dest_sample++ = *source_sample++;
-    *dest_sample++ = *source_sample++;
-    ++sound_output->running_sample_idx;
-  }
-
-  SOUND_BUFFER->Unlock(region1, region1_size, region2, region2_size);
-
-  return true;
-}
-
-static inline FileResult ReadEntireFileDebug(wchar_t *file_path) {
-  FileResult result = {};
-
-  HANDLE file_handle = CreateFileW(file_path, GENERIC_READ, FILE_SHARE_READ, 0,
-                                   OPEN_EXISTING, 0, 0);
-  if (file_handle == INVALID_HANDLE_VALUE) {
-    CloseHandle(file_handle);
-    return result;
-  }
-
-  LARGE_INTEGER file_size;
-
-  if (!GetFileSizeEx(file_handle, &file_size)) {
-    CloseHandle(file_handle);
-    return result;
-  }
-
-  Assert(file_size.QuadPart <= 0xFF'FF'FF'FF);
-  result.file_size = (uint32_t)(file_size.QuadPart);
-
-  result.content = VirtualAlloc(0, result.file_size, MEM_RESERVE | MEM_COMMIT,
-                                PAGE_READWRITE);
-  if (!result.content) {
-    FreeFileMemoryDebug(&result.content);
-    CloseHandle(file_handle);
-    return result;
-  }
-
-  DWORD bytes_read = 0;
-  if (!(ReadFile(file_handle, result.content, result.file_size, &bytes_read,
-                 0) &&
-        result.file_size == bytes_read)) {
-    FreeFileMemoryDebug(&result.content);
-    CloseHandle(file_handle);
-    return result;
-  }
-
-  CloseHandle(file_handle);
-
-  return result;
-}
-
-static inline void FreeFileMemoryDebug(void **memory) {
-  if (!memory || !*memory) {
-    return;
-  }
-
-  VirtualFree(*memory, 0, MEM_RELEASE);
-  *memory = 0;
-
-  Assert(!*memory);
-}
-
-static inline bool WriteEntireFileDebug(wchar_t *file_path,
-                                        uint32_t memory_size, void *memory) {
-  HANDLE file_handle =
-      CreateFileW(file_path, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
-  if (file_handle == INVALID_HANDLE_VALUE) {
-    CloseHandle(file_handle);
-    return false;
-  }
-
-  DWORD bytes_written = 0;
-  if (!WriteFile(file_handle, memory, memory_size, &bytes_written, 0)) {
-    CloseHandle(file_handle);
-    return false;
-  }
-
-  CloseHandle(file_handle);
-  return bytes_written == memory_size;
-}
-
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
                      LPSTR command_line, int show_code) {
+#if 0
   {
-    // file read and write test
-
     wchar_t file_path[] = L"D:\\Work\\Bear\\CMakeCache.txt";
     FileResult result = ReadEntireFileDebug(file_path);
     if (result.content) {
@@ -502,6 +191,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
       FreeFileMemoryDebug(&result.content);
     }
   }
+#endif
 
   if (!InitXInput()) {
     OutputDebugStringW(L"XInput initialization failed\n");
@@ -540,17 +230,19 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
       sound_output.samples_per_second * sound_output.bytes_per_sample;
   sound_output.latency_sample_count = sound_output.samples_per_second / 15;
 
-  if (!InitDirectSound(window, sound_output.samples_per_second,
-                       sound_output.secondary_buffer_size)) {
+  IDirectSoundBuffer *sound_buffer =
+      InitDirectSound(window, sound_output.samples_per_second,
+                      sound_output.secondary_buffer_size);
+  if (!sound_buffer) {
     OutputDebugStringW(L"DirectSound initialization failed\n");
     return 1;
   }
 
-  if (!ClearBuffer(&sound_output)) {
+  if (!ClearBuffer(sound_buffer, &sound_output)) {
     return 1;
   }
 
-  if (!SUCCEEDED(SOUND_BUFFER->Play(0, 0, DSBPLAY_LOOPING))) {
+  if (!SUCCEEDED(sound_buffer->Play(0, 0, DSBPLAY_LOOPING))) {
     return 1;
   }
 
@@ -602,14 +294,12 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   GameInput new_input = {};
 
   while (RUNNING) {
-    MSG message;
-    while (PeekMessageW(&message, 0, 0, 0, PM_REMOVE)) {
-      if (message.message == WM_QUIT) {
-        RUNNING = false;
-        break;
-      }
-      TranslateMessage(&message);
-      DispatchMessageW(&message);
+    ControllerInput *keyboard_controller = &new_input.controllers[0];
+    ControllerInput empty_controller = {};
+    *keyboard_controller = empty_controller;
+
+    if (!ProcessPendingMessages(keyboard_controller)) {
+      break;
     }
 
     HandleGamepad(&old_input, &new_input);
@@ -621,7 +311,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     DWORD write_cursor;
     bool sound_is_valid = false;
     if (SUCCEEDED(
-            SOUND_BUFFER->GetCurrentPosition(&play_cursor, &write_cursor))) {
+            sound_buffer->GetCurrentPosition(&play_cursor, &write_cursor))) {
       byte_to_lock =
           (sound_output.running_sample_idx * sound_output.bytes_per_sample) %
           sound_output.secondary_buffer_size;
@@ -656,7 +346,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     UpdateAndRender(&memory, &game_buffer, &game_sound_buffer, &new_input);
 
     if (sound_is_valid) {
-      FillSoundBuffer(&sound_output, byte_to_lock, bytes_to_write,
+      FillSoundBuffer(sound_buffer, &sound_output, byte_to_lock, bytes_to_write,
                       &game_sound_buffer);
     }
 

@@ -67,8 +67,12 @@ struct ControllerInput {
   float end_y;
 
   union {
-    ButtonState buttons[6];
+    ButtonState buttons[10];
     struct {
+      ButtonState up_button;
+      ButtonState down_button;
+      ButtonState left_button;
+      ButtonState right_button;
       ButtonState y_button;
       ButtonState a_button;
       ButtonState x_button;
@@ -83,9 +87,10 @@ struct GameInput {
   ControllerInput controllers[4];
 };
 
-static inline void Render(GameBuffer *buffer, int x_offset, int y_offset);
+static inline void Render(GameBuffer *buffer, GameState *state);
 
-static inline void OutputGameSound(GameSoundBuffer *sound_buffer);
+static inline void OutputGameSound(GameSoundBuffer *sound_buffer,
+                                   float tone_hz);
 
 void UpdateAndRender(GameMemory *memory, GameBuffer *buffer,
                      GameSoundBuffer *sound_buffer, GameInput *input);

@@ -5,56 +5,24 @@
 // Handmade Hero License by Casey Muratori
 // See the end of file for license information
 
-#ifndef WIN32_HANDMADE_HERO_H_
+#include "../../src/win32/win32-handmade-hero.h"
 
-#include <dsound.h>
-#include <windows.h>
-#include <xinput.h>
+#ifndef WIN32_FILE_IO_H_
 
-#include <cstdint>
+#if DEV
+struct FileResult {
+  uint32_t file_size;
+  void *content;
+};
 
-#include "../../src/handmade-hero/handmade-hero.h"
-
-#define DEV 1
-#define DEBUG 1
-
-#if DEBUG
-#define Assert(expression)              \
-  if (!static_cast<bool>(expression)) { \
-    __debugbreak();                     \
-  }
-#else
-#define Assert(expression)
+FileResult ReadEntireFileDebug(wchar_t *file_path);
+void FreeFileMemoryDebug(void **memory);
+bool WriteEntireFileDebug(wchar_t *file_path, uint32_t memory_size,
+                          void *memory);
 #endif
 
-struct Buffer {
-  BITMAPINFO info;
-  void *memory;
-  int width;
-  int height;
-  int pitch;
-  int bytes_per_pixel;
-};
-
-struct Dimensions {
-  int width;
-  int height;
-};
-
-static inline Dimensions GetDimensions(HWND window);
-
-static inline void ResizeDIBSection(Buffer *buffer, int width, int height);
-static inline void DisplayBuffer(HDC device_context, int window_x, int window_y,
-                                 uint16_t window_width, uint16_t window_height,
-                                 Buffer *buffer);
-static inline LRESULT CALLBACK MainWindowCallback(HWND window, UINT message,
-                                                  WPARAM w_param,
-                                                  LPARAM l_param);
-
-static inline bool ProcessPendingMessages(ControllerInput *keyboard_controller);
-
-#define WIN32_HANDMADE_HERO_H_
-#endif  // WIN32_HANDMADE_HERO_H_
+#define WIN32_FILE_IO_H_
+#endif  // WIN32_FILE_IO_H_
 
 // All of the source code, artwork, and sound effects for Handmade Hero
 // are Copyright 2014 by Molly Rocket, Inc., and all rights are reserved.
