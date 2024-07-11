@@ -20,7 +20,19 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\handmade-hero\handmade-hero.cpp" />
-    <ClCompile Include="src\win32\win32-handmade-hero.cpp" />
+    <ClCompile Include="src\win32\win32-file-io.cpp" />
+    <ClCompile Include="src\win32\win32-handmade-hero.cpp">
+      <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Level4</WarningLevel>
+      <IntrinsicFunctions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</IntrinsicFunctions>
+      <ExceptionHandling Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExceptionHandling>
+      <RuntimeLibrary Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">MultiThreaded</RuntimeLibrary>
+      <RuntimeTypeInfo Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</RuntimeTypeInfo>
+      <LanguageStandard_C Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+      </LanguageStandard_C>
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4201;4127;4100;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <ClCompile Include="src\win32\win32-input.cpp" />
+    <ClCompile Include="src\win32\win32-sound.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
