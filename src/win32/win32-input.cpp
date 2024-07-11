@@ -27,62 +27,142 @@ bool InitXInput() {
   return true;
 }
 
-void ProcessXInputDigitalButton(ButtonState *old_state, ButtonState *new_state,
-                                DWORD xinput_button_state, DWORD button_bit) {
-  if (!(xinput_button_state & button_bit)) {
-    return;
+bool ProcessPendingMessages(ControllerInput *keyboard_controller) {
+  bool result = true;
+
+  MSG message;
+  while (PeekMessageW(&message, 0, 0, 0, PM_REMOVE)) {
+    switch (message.message) {
+      case WM_SYSKEYDOWN: {
+        // uint32_t vk_code = (uint32_t)message.wParam;
+        //
+        // bool alt_key_down =
+        //     (static_cast<uint32_t>(message.lParam) & (1U << 29)) != 0;
+        // if ((vk_code == VK_F4) && alt_key_down) {
+        //   result = false;
+        //   break;
+        // }
+
+        break;
+      }
+
+      case WM_SYSKEYUP: {
+        break;
+      }
+
+      case WM_KEYDOWN: {
+        // works
+
+        uint32_t vk_code = (uint32_t)message.wParam;
+
+        if (vk_code == VK_ESCAPE) {
+          result = false;
+          break;
+        }
+
+        bool was_key_down =
+            (static_cast<int32_t>(message.lParam) & (1U << 30)) != 0;
+        bool is_key_down =
+            (static_cast<int32_t>(message.lParam) & (1U << 31)) == 0;
+
+        // if (was_key_down != is_key_down) {
+        //   HandleKeyboard(keyboard_controller, vk_code, is_key_down);
+        // }
+        HandleKeyboard(keyboard_controller, vk_code, is_key_down);
+
+        break;
+      }
+
+      case WM_KEYUP: {
+        // uint32_t vk_code = (uint32_t)message.wParam;
+        //
+        // if (vk_code == VK_ESCAPE) {
+        //   result = false;
+        //   break;
+        // }
+        //
+        // int32_t l_param = (int32_t)message.lParam;
+        //
+        // uint32_t was_key_down_bit = (l_param & (1U << 30U)) >> 30U;
+        // uint32_t is_key_down_bit = (l_param & (1U << 31U)) >> 31U;
+        //
+        // bool was_key_down = was_key_down_bit == 1;
+        // bool is_key_down = is_key_down_bit == 0;
+        //
+        // if (was_key_down != is_key_down) {
+        //   HandleKeyboard(keyboard_controller, vk_code, is_key_down);
+        // }
+
+        break;
+      }
+
+      default: {
+        TranslateMessage(&message);
+        DispatchMessageW(&message);
+      }
+    }
   }
+
+  return result;
+}
+
+static inline void ProcessXInputDigitalButton(ButtonState *old_state,
+                                              ButtonState *new_state,
+                                              DWORD xinput_button_state,
+                                              DWORD button_bit) {
   new_state->ended_down = (xinput_button_state & button_bit) == button_bit;
   new_state->half_transition_count =
       (old_state->ended_down != new_state->ended_down) ? 1 : 0;
 }
 
-void ProcessKeyboardMessage(ButtonState *new_state, bool is_key_down,
-                            uint32_t button_code) {
+static inline void ProcessKeyboardMessage(ButtonState *new_state,
+                                          bool is_key_down,
+                                          uint32_t button_code) {
+  // Assert(new_state->ended_down != is_key_down);
   new_state->ended_down = is_key_down;
   ++new_state->half_transition_count;
 }
 
-void HandleKeyboard(ControllerInput *keyboard_controller, uint32_t vk_code,
-                    bool is_key_down) {
+static inline void HandleKeyboard(ControllerInput *keyboard_controller,
+                                  uint32_t vk_code, bool is_key_down) {
   switch (vk_code) {
+    case 'W': {
+      ProcessKeyboardMessage(&keyboard_controller->move_up, is_key_down,
+                             vk_code);
+      break;
+    }
+    case 'S': {
+      ProcessKeyboardMessage(&keyboard_controller->move_down, is_key_down,
+                             vk_code);
+      break;
+    }
+    case 'A': {
+      ProcessKeyboardMessage(&keyboard_controller->move_left, is_key_down,
+                             vk_code);
+      break;
+    }
+    case 'D': {
+      ProcessKeyboardMessage(&keyboard_controller->move_right, is_key_down,
+                             vk_code);
+      break;
+    }
     case VK_UP: {
-      ProcessKeyboardMessage(&keyboard_controller->up_button, is_key_down,
+      ProcessKeyboardMessage(&keyboard_controller->action_up, is_key_down,
                              vk_code);
       break;
     }
     case VK_DOWN: {
-      ProcessKeyboardMessage(&keyboard_controller->down_button, is_key_down,
+      ProcessKeyboardMessage(&keyboard_controller->action_down, is_key_down,
                              vk_code);
       break;
     }
     case VK_LEFT: {
-      ProcessKeyboardMessage(&keyboard_controller->left_button, is_key_down,
+      ProcessKeyboardMessage(&keyboard_controller->action_left, is_key_down,
                              vk_code);
       break;
     }
     case VK_RIGHT: {
-      ProcessKeyboardMessage(&keyboard_controller->right_button, is_key_down,
-                             vk_code);
-      break;
-    }
-    case 'Z': {
-      ProcessKeyboardMessage(&keyboard_controller->y_button, is_key_down,
-                             vk_code);
-      break;
-    }
-    case 'X': {
-      ProcessKeyboardMessage(&keyboard_controller->a_button, is_key_down,
-                             vk_code);
-      break;
-    }
-    case 'C': {
-      ProcessKeyboardMessage(&keyboard_controller->x_button, is_key_down,
-                             vk_code);
-      break;
-    }
-    case 'V': {
-      ProcessKeyboardMessage(&keyboard_controller->b_button, is_key_down,
+      ProcessKeyboardMessage(&keyboard_controller->action_right, is_key_down,
                              vk_code);
       break;
     }
@@ -102,70 +182,105 @@ void HandleKeyboard(ControllerInput *keyboard_controller, uint32_t vk_code,
   }
 }
 
+static inline float ProcessXInputStickPosition(SHORT raw_stick_value,
+                                               SHORT deadzone) {
+  float stick_value;
+  if (raw_stick_value < -deadzone) {
+    stick_value = static_cast<float>(raw_stick_value) / 32768.0f;
+  } else if (raw_stick_value > deadzone) {
+    stick_value = static_cast<float>(raw_stick_value) / 32767.0f;
+  } else {
+    stick_value = 0;
+  }
+  return stick_value;
+}
+
 void HandleGamepad(GameInput *old_input, GameInput *new_input) {
   if (!DyXInputGetState || !DyXInputSetState) {
     return;
   }
 
-  int max_supported_controller_count = ArraySize(old_input->controllers);
+  int max_supported_controller_count = ArraySize(old_input->controllers) - 1;
   int max_controller_count = (XUSER_MAX_COUNT > max_supported_controller_count)
                                  ? max_supported_controller_count
                                  : XUSER_MAX_COUNT;
 
   for (int controller_idx = 0; controller_idx < max_controller_count;
        ++controller_idx) {
-    ControllerInput *old_controller = &old_input->controllers[controller_idx];
-    ControllerInput *new_controller = &new_input->controllers[controller_idx];
+    ControllerInput *old_controller =
+        &old_input->controllers[controller_idx + 1];
+    ControllerInput *new_controller =
+        &new_input->controllers[controller_idx + 1];
 
     old_controller->is_analog = true;
     new_controller->is_analog = true;
 
     XINPUT_STATE controller_state;
-    if (DyXInputGetState(controller_idx, &controller_state) == ERROR_SUCCESS) {
-      XINPUT_GAMEPAD *gamepad = &controller_state.Gamepad;
-
-      float stick_x = (gamepad->sThumbLX < 0)
-                          ? static_cast<float>(gamepad->sThumbLX) / 32768.0f
-                          : static_cast<float>(gamepad->sThumbLX) / 32767.0f;
-      new_controller->start_x = old_controller->end_x;
-
-      new_controller->min_x = stick_x;
-      new_controller->max_x = stick_x;
-      new_controller->end_x = stick_x;
-
-      float stick_y = (gamepad->sThumbLY < 0)
-                          ? static_cast<float>(gamepad->sThumbLY) / 32768.0f
-                          : static_cast<float>(gamepad->sThumbLY) / 32767.0f;
-      new_controller->start_y = old_controller->end_y;
-
-      new_controller->min_y = stick_y;
-      new_controller->max_y = stick_y;
-      new_controller->end_y = stick_y;
-
-      DWORD button_bits[] = {
-          XINPUT_GAMEPAD_DPAD_UP,
-          XINPUT_GAMEPAD_DPAD_DOWN,
-          XINPUT_GAMEPAD_DPAD_LEFT,
-          XINPUT_GAMEPAD_DPAD_RIGHT,
-          XINPUT_GAMEPAD_Y,
-          XINPUT_GAMEPAD_A,
-          XINPUT_GAMEPAD_X,
-          XINPUT_GAMEPAD_B,
-          XINPUT_GAMEPAD_LEFT_SHOULDER,
-          XINPUT_GAMEPAD_RIGHT_SHOULDER,
-      };
-
-      Assert(ArraySize(button_bits) == ArraySize(old_controller->buttons));
-
-      for (int i = 0; i < ArraySize(old_controller->buttons); ++i) {
-        ProcessXInputDigitalButton(&old_controller->buttons[i],
-                                   &new_controller->buttons[i],
-                                   gamepad->wButtons, button_bits[i]);
-      }
-
-    } else {
-      // TODO(bissakov): Controller is not available
+    if (DyXInputGetState(controller_idx, &controller_state) != ERROR_SUCCESS) {
+      new_controller->is_connected = false;
+      continue;
     }
+
+    new_controller->is_connected = true;
+
+    XINPUT_GAMEPAD *gamepad = &controller_state.Gamepad;
+
+    new_controller->stick_avg_x = ProcessXInputStickPosition(
+        gamepad->sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+    new_controller->stick_avg_y = ProcessXInputStickPosition(
+        gamepad->sThumbLY, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE);
+
+    if (gamepad->wButtons & XINPUT_GAMEPAD_DPAD_UP) {
+      new_controller->stick_avg_y = 1.0f;
+    }
+    if (gamepad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN) {
+      new_controller->stick_avg_y = -1.0f;
+    }
+    if (gamepad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT) {
+      new_controller->stick_avg_x = -1.0f;
+    }
+    if (gamepad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT) {
+      new_controller->stick_avg_x = 1.0f;
+    }
+
+    float threshold = 0.5f;
+    ProcessXInputDigitalButton(
+        &old_controller->move_left, &new_controller->move_left,
+        ((new_controller->stick_avg_x < -threshold) ? 1 : 0), 1);
+    ProcessXInputDigitalButton(
+        &old_controller->move_left, &new_controller->move_left,
+        ((new_controller->stick_avg_x > threshold) ? 1 : 0), 1);
+    ProcessXInputDigitalButton(
+        &old_controller->move_left, &new_controller->move_left,
+        ((new_controller->stick_avg_x < -threshold) ? 1 : 0), 1);
+    ProcessXInputDigitalButton(
+        &old_controller->move_left, &new_controller->move_left,
+        ((new_controller->stick_avg_x > threshold) ? 1 : 0), 1);
+
+    ProcessXInputDigitalButton(&old_controller->action_up,
+                               &new_controller->action_up, gamepad->wButtons,
+                               XINPUT_GAMEPAD_Y);
+    ProcessXInputDigitalButton(&old_controller->action_down,
+                               &new_controller->action_down, gamepad->wButtons,
+                               XINPUT_GAMEPAD_A);
+    ProcessXInputDigitalButton(&old_controller->action_left,
+                               &new_controller->action_left, gamepad->wButtons,
+                               XINPUT_GAMEPAD_X);
+    ProcessXInputDigitalButton(&old_controller->action_right,
+                               &new_controller->action_right, gamepad->wButtons,
+                               XINPUT_GAMEPAD_B);
+    ProcessXInputDigitalButton(&old_controller->left_shoulder,
+                               &new_controller->left_shoulder,
+                               gamepad->wButtons, XINPUT_GAMEPAD_LEFT_SHOULDER);
+    ProcessXInputDigitalButton(&old_controller->right_shoulder,
+                               &new_controller->right_shoulder,
+                               gamepad->wButtons, XINPUT_GAMEPAD_LEFT_SHOULDER);
+    ProcessXInputDigitalButton(&old_controller->start_button,
+                               &new_controller->start_button, gamepad->wButtons,
+                               XINPUT_GAMEPAD_START);
+    ProcessXInputDigitalButton(&old_controller->back_button,
+                               &new_controller->back_button, gamepad->wButtons,
+                               XINPUT_GAMEPAD_BACK);
   }
 }
 

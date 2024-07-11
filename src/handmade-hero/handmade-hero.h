@@ -1,13 +1,6 @@
-// Copyright 2024 Alikhan Bissakov
-// Handmade Hero
-// File: handmade-hero.cpp
-// ----------------------
-// Handmade Hero License by Casey Muratori
-// See the end of file for license information
+#ifndef HANDMADE_HERO_H_
 
 #include <cstdint>
-
-#ifndef HANDMADE_HERO_H_
 
 #define ArraySize(arr) (sizeof(arr) / sizeof((arr)[0]))
 
@@ -26,7 +19,8 @@ struct GameMemory {
 };
 
 struct GameState {
-  float tone_hz;
+  float t_sin;
+  int tone_hz;
   int x_offset = 0;
   int y_offset = 0;
 };
@@ -52,71 +46,48 @@ struct ButtonState {
 };
 
 struct ControllerInput {
+  bool is_connected;
   bool is_analog;
-
-  float start_x;
-  float start_y;
-
-  float min_x;
-  float min_y;
-
-  float max_x;
-  float max_y;
-
-  float end_x;
-  float end_y;
+  float stick_avg_x;
+  float stick_avg_y;
 
   union {
-    ButtonState buttons[10];
+    ButtonState buttons[14];
     struct {
-      ButtonState up_button;
-      ButtonState down_button;
-      ButtonState left_button;
-      ButtonState right_button;
-      ButtonState y_button;
-      ButtonState a_button;
-      ButtonState x_button;
-      ButtonState b_button;
+      ButtonState move_up;
+      ButtonState move_down;
+      ButtonState move_left;
+      ButtonState move_right;
+
+      ButtonState action_up;
+      ButtonState action_down;
+      ButtonState action_left;
+      ButtonState action_right;
+
       ButtonState left_shoulder;
       ButtonState right_shoulder;
+
+      ButtonState start_button;
+      ButtonState back_button;
     };
   };
 };
 
 struct GameInput {
-  ControllerInput controllers[4];
+  ControllerInput controllers[5];
 };
+
+inline ControllerInput *GetController(GameInput *input, int controller_idx) {
+  Assert(controller_idx < ArraySize(input->controllers));
+}
 
 static inline void Render(GameBuffer *buffer, GameState *state);
 
 static inline void OutputGameSound(GameSoundBuffer *sound_buffer,
-                                   float tone_hz);
+                                   GameState *state);
 
 void UpdateAndRender(GameMemory *memory, GameBuffer *buffer,
                      GameSoundBuffer *sound_buffer, GameInput *input);
 
 #define HANDMADE_HERO_H_
 #endif  // HANDMADE_HERO_H_
-
-// All of the source code, artwork, and sound effects for Handmade Hero
-// are Copyright 2014 by Molly Rocket, Inc., and all rights are reserved.
-// Anyone who has purchased a copy of Handmade Hero is granted a
-// personal, non-assignable, non-transferable, non-commercial license to
-// use the source code, artwork, and sound effects for their own personal
-// educational purposes. Any other use, including any redistribution in
-// whole or in part, requires explicit, written permission from Molly
-// Rocket, Inc.
-//
-// All of the music in Handmade Hero is licensed from Audio Network, who
-// retains the copyright thereto. It may only be used for the original
-// purpose of playback during execution of the original game, and may not
-// be repurposed, redistributed, modified, or used in any other way. If
-// you would like to use the music from Handmade Hero for any other
-// purpose, you must contact Audio Network and negotiate a separate
-// license agreement.
-//
-// Handmade Hero and its source materials are provided "as is" without
-// warranty of any kind, either express or implied, including without
-// limitation any implied warranties of condition, uninterrupted use,
-// merchantability, fitness for a particular purpose, or
-// non-infringement.

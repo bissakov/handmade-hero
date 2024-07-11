@@ -1,10 +1,3 @@
-// Copyright 2024 Alikhan Bissakov
-// Handmade Hero
-// File: handmade-hero.cpp
-// ----------------------
-// Handmade Hero License by Casey Muratori
-// See the end of file for license information
-
 #include "../../src/win32/win32-handmade-hero.h"
 
 #include <dsound.h>
@@ -68,65 +61,6 @@ static inline void DisplayBuffer(HDC device_context, int window_x, int window_y,
   StretchDIBits(device_context, window_x, window_y, window_width, window_height,
                 0, 0, buffer->width, buffer->height, buffer->memory,
                 &buffer->info, DIB_RGB_COLORS, SRCCOPY);
-}
-
-static inline bool ProcessPendingMessages(
-    ControllerInput *keyboard_controller) {
-  bool result = true;
-
-  MSG message;
-  while (PeekMessageW(&message, 0, 0, 0, PM_REMOVE)) {
-    switch (message.message) {
-      case WM_SYSKEYDOWN: {
-        uint32_t vk_code = (uint32_t)message.wParam;
-
-        bool alt_key_down =
-            (static_cast<uint32_t>(message.lParam) & (1U << 29)) != 0;
-        if ((vk_code == VK_F4) && alt_key_down) {
-          result = false;
-          break;
-        }
-
-        break;
-      }
-
-      case WM_SYSKEYUP: {
-        break;
-      }
-
-      case WM_KEYDOWN: {
-        // works
-
-        uint32_t vk_code = (uint32_t)message.wParam;
-
-        if (vk_code == VK_ESCAPE) {
-          result = false;
-          break;
-        }
-
-        bool was_key_down =
-            (static_cast<int32_t>(message.lParam) & (1U << 30)) != 0;
-        bool is_key_down =
-            (static_cast<int32_t>(message.lParam) & (1U << 31)) == 0;
-
-        if (was_key_down != is_key_down) {
-          HandleKeyboard(keyboard_controller, vk_code, is_key_down);
-        }
-        break;
-      }
-
-      case WM_KEYUP: {
-        break;
-      }
-
-      default: {
-        TranslateMessage(&message);
-        DispatchMessageW(&message);
-      }
-    }
-  }
-
-  return result;
 }
 
 static inline LRESULT CALLBACK MainWindowCallback(HWND window, UINT message,
@@ -246,15 +180,6 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     return 1;
   }
 
-  LARGE_INTEGER perf_count_frequency_result;
-  QueryPerformanceFrequency(&perf_count_frequency_result);
-  int64_t perf_count_frequency = perf_count_frequency_result.QuadPart;
-
-  LARGE_INTEGER last_counter;
-  QueryPerformanceCounter(&last_counter);
-
-  uint64_t last_cycle_count = __rdtsc();
-
   int16_t *samples = reinterpret_cast<int16_t *>(
       VirtualAlloc(0, sound_output.secondary_buffer_size,
                    MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
@@ -293,16 +218,33 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   GameInput old_input = {};
   GameInput new_input = {};
 
-  while (RUNNING) {
-    ControllerInput *keyboard_controller = &new_input.controllers[0];
-    ControllerInput empty_controller = {};
-    *keyboard_controller = empty_controller;
+  // LARGE_INTEGER perf_count_frequency_result;
+  // QueryPerformanceFrequency(&perf_count_frequency_result);
+  // int64_t perf_count_frequency = perf_count_frequency_result.QuadPart;
+  //
+  // LARGE_INTEGER last_counter;
+  // QueryPerformanceCounter(&last_counter);
+  //
+  // uint64_t last_cycle_count = __rdtsc();
 
-    if (!ProcessPendingMessages(keyboard_controller)) {
-      break;
+  while (RUNNING) {
+    ControllerInput *old_keyboard_controller = &old_input.controllers[0];
+    ControllerInput *new_keyboard_controller = &new_input.controllers[0];
+    ControllerInput empty_controller = {};
+    *new_keyboard_controller = empty_controller;
+
+    new_keyboard_controller->is_connected = true;
+
+    for (int i = 0; i < ArraySize(new_keyboard_controller->buttons); ++i) {
+      new_keyboard_controller->buttons[i].ended_down =
+          old_keyboard_controller->buttons[i].ended_down;
     }
 
+    if (!ProcessPendingMessages(new_keyboard_controller)) {
+      break;
+    }
     HandleGamepad(&old_input, &new_input);
+    SwapInputs(&old_input, &new_input);
 
     DWORD byte_to_lock = 0;
     DWORD target_cursor = 0;
@@ -354,53 +296,29 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     DisplayBuffer(device_context, 0, 0, window_dimensions.width,
                   window_dimensions.height, &BUFFER);
 
-    uint64_t end_cycle_count = __rdtsc();
-
-    LARGE_INTEGER end_counter;
-    QueryPerformanceCounter(&end_counter);
-
-    float megacycles_elapsed =
-        static_cast<float>((end_cycle_count - last_cycle_count) / 1'000'000.0f);
-    uint64_t counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
-    float ms_per_frame =
-        static_cast<float>(1000.0f * counter_elapsed) / perf_count_frequency;
-    float fps = static_cast<float>(perf_count_frequency) / counter_elapsed;
-
-    char buffer[256];
-    snprintf(buffer, sizeof(buffer), "%.02f ms/f\t%.02f fps\t%.02fmc/f\n",
-             ms_per_frame, fps, megacycles_elapsed);
-    OutputDebugStringA(buffer);
-
-    last_counter = end_counter;
-    last_cycle_count = end_cycle_count;
-
-    SwapInputs(&old_input, &new_input);
+    // uint64_t end_cycle_count = __rdtsc();
+    //
+    // LARGE_INTEGER end_counter;
+    // QueryPerformanceCounter(&end_counter);
+    //
+    // float megacycles_elapsed =
+    //     static_cast<float>((end_cycle_count - last_cycle_count) /
+    //     1'000'000.0f);
+    // uint64_t counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
+    // float ms_per_frame =
+    //     static_cast<float>(1000.0f * counter_elapsed) / perf_count_frequency;
+    // float fps = static_cast<float>(perf_count_frequency) / counter_elapsed;
+    //
+    // char buffer[256];
+    // snprintf(buffer, sizeof(buffer), "%.02f ms/f\t%.02f fps\t%.02fmc/f\n",
+    //          ms_per_frame, fps, megacycles_elapsed);
+    // OutputDebugStringA(buffer);
+    //
+    // last_counter = end_counter;
+    // last_cycle_count = end_cycle_count;
   }
 
   ReleaseDC(window, device_context);
 
   return 0;
 }
-
-// All of the source code, artwork, and sound effects for Handmade Hero
-// are Copyright 2014 by Molly Rocket, Inc., and all rights are reserved.
-// Anyone who has purchased a copy of Handmade Hero is granted a
-// personal, non-assignable, non-transferable, non-commercial license to
-// use the source code, artwork, and sound effects for their own personal
-// educational purposes. Any other use, including any redistribution in
-// whole or in part, requires explicit, written permission from Molly
-// Rocket, Inc.
-//
-// All of the music in Handmade Hero is licensed from Audio Network, who
-// retains the copyright thereto. It may only be used for the original
-// purpose of playback during execution of the original game, and may not
-// be repurposed, redistributed, modified, or used in any other way. If
-// you would like to use the music from Handmade Hero for any other
-// purpose, you must contact Audio Network and negotiate a separate
-// license agreement.
-//
-// Handmade Hero and its source materials are provided "as is" without
-// warranty of any kind, either express or implied, including without
-// limitation any implied warranties of condition, uninterrupted use,
-// merchantability, fitness for a particular purpose, or
-// non-infringement.
