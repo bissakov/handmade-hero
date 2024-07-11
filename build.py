@@ -31,6 +31,7 @@ def create_compile_command(
             "-EHa-",  # Disable C++ exception handling
             "-MT",  # Use static multi-threaded runtime library
             "-Gm-",  # Disable minimal rebuild
+            "-Od",  # Disable optimization
         ]
     )
 
