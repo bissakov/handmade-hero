@@ -5,6 +5,13 @@
 
 #define PI 3.14159265359f
 
+ControllerInput *GetController(GameInput *input, int controller_idx) {
+  Assert(controller_idx >= 0);
+  Assert(controller_idx < ArraySize(input->controllers));
+  ControllerInput *result = &input->controllers[controller_idx];
+  return result;
+}
+
 static void Render(GameBuffer *buffer, GameState *state) {
   uint8_t *row = reinterpret_cast<uint8_t *>(buffer->memory);
   for (int y = 0; y < buffer->height; ++y) {
@@ -46,21 +53,17 @@ void UpdateAndRender(GameMemory *memory, GameBuffer *buffer,
   }
 
   for (int i = 0; i < ArraySize(input->controllers); ++i) {
-    ControllerInput *controller = &input->controllers[i];
+    ControllerInput *controller = GetController(input, i);
+
+    if (!controller->is_connected) {
+      continue;
+    }
 
     if (controller->is_analog && controller->is_connected) {
       state->tone_hz = 256 + static_cast<int>(128 * controller->stick_avg_x);
       state->x_offset -= 10 * static_cast<int>(controller->stick_avg_x);
       state->y_offset += 10 * static_cast<int>(controller->stick_avg_y);
     } else {
-      if (controller->move_left.ended_down) {
-        state->tone_hz = 256 - 128;
-        state->x_offset -= 10;
-      }
-      if (controller->move_right.ended_down) {
-        state->tone_hz = 256 + 128;
-        state->x_offset += 10;
-      }
     }
 
     if (controller->action_down.ended_down) {

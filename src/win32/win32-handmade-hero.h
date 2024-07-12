@@ -6,16 +6,12 @@
 
 #include <cstdint>
 
+#ifndef DEV
 #define DEV 1
-#define DEBUG 1
+#endif
 
-#if DEBUG
-#define Assert(expression)              \
-  if (!static_cast<bool>(expression)) { \
-    __debugbreak();                     \
-  }
-#else
-#define Assert(expression)
+#ifndef DEBUG
+#define DEBUG 1
 #endif
 
 struct Buffer {

@@ -228,10 +228,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   // uint64_t last_cycle_count = __rdtsc();
 
   while (RUNNING) {
-    ControllerInput *old_keyboard_controller = &old_input.controllers[0];
-    ControllerInput *new_keyboard_controller = &new_input.controllers[0];
-    ControllerInput empty_controller = {};
-    *new_keyboard_controller = empty_controller;
+    ControllerInput *old_keyboard_controller = GetController(&old_input, 0);
+    ControllerInput *new_keyboard_controller = GetController(&new_input, 0);
+    *new_keyboard_controller = {};
 
     new_keyboard_controller->is_connected = true;
 

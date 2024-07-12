@@ -3,8 +3,6 @@
 #include <windows.h>
 #include <xinput.h>
 
-#include "../../src/win32/win32-handmade-hero.h"
-
 static XInputGetStateT *DyXInputGetState;
 static XInputSetStateT *DyXInputSetState;
 
@@ -31,67 +29,37 @@ bool ProcessPendingMessages(ControllerInput *keyboard_controller) {
   bool result = true;
 
   MSG message;
-  while (PeekMessageW(&message, 0, 0, 0, PM_REMOVE)) {
+  while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
+    uint32_t vk_code = (uint32_t)message.wParam;
+    int32_t l_param = (int32_t)message.lParam;
+
+    uint32_t was_key_down_bit = (l_param & (1U << 30U)) >> 30U;
+    uint32_t is_key_down_bit = (l_param & (1U << 31U)) >> 31U;
+    bool was_key_down = was_key_down_bit != 0;
+    bool is_key_down = is_key_down_bit == 0;
+
     switch (message.message) {
       case WM_SYSKEYDOWN: {
-        // uint32_t vk_code = (uint32_t)message.wParam;
-        //
-        // bool alt_key_down =
-        //     (static_cast<uint32_t>(message.lParam) & (1U << 29)) != 0;
-        // if ((vk_code == VK_F4) && alt_key_down) {
-        //   result = false;
-        //   break;
-        // }
+        bool alt_key_down =
+            (static_cast<uint32_t>(message.lParam) & (1U << 29)) != 0;
+        if ((vk_code == VK_F4) && alt_key_down) {
+          result = false;
+          break;
+        }
 
         break;
       }
-
-      case WM_SYSKEYUP: {
-        break;
-      }
-
-      case WM_KEYDOWN: {
-        // works
-
-        uint32_t vk_code = (uint32_t)message.wParam;
-
+      case WM_SYSKEYUP:
+      case WM_KEYDOWN:
+      case WM_KEYUP: {
         if (vk_code == VK_ESCAPE) {
           result = false;
           break;
         }
 
-        bool was_key_down =
-            (static_cast<int32_t>(message.lParam) & (1U << 30)) != 0;
-        bool is_key_down =
-            (static_cast<int32_t>(message.lParam) & (1U << 31)) == 0;
-
-        // if (was_key_down != is_key_down) {
-        //   HandleKeyboard(keyboard_controller, vk_code, is_key_down);
-        // }
-        HandleKeyboard(keyboard_controller, vk_code, is_key_down);
-
-        break;
-      }
-
-      case WM_KEYUP: {
-        // uint32_t vk_code = (uint32_t)message.wParam;
-        //
-        // if (vk_code == VK_ESCAPE) {
-        //   result = false;
-        //   break;
-        // }
-        //
-        // int32_t l_param = (int32_t)message.lParam;
-        //
-        // uint32_t was_key_down_bit = (l_param & (1U << 30U)) >> 30U;
-        // uint32_t is_key_down_bit = (l_param & (1U << 31U)) >> 31U;
-        //
-        // bool was_key_down = was_key_down_bit == 1;
-        // bool is_key_down = is_key_down_bit == 0;
-        //
-        // if (was_key_down != is_key_down) {
-        //   HandleKeyboard(keyboard_controller, vk_code, is_key_down);
-        // }
+        if (was_key_down != is_key_down) {
+          HandleKeyboard(keyboard_controller, vk_code, is_key_down);
+        }
 
         break;
       }
@@ -118,7 +86,7 @@ static inline void ProcessXInputDigitalButton(ButtonState *old_state,
 static inline void ProcessKeyboardMessage(ButtonState *new_state,
                                           bool is_key_down,
                                           uint32_t button_code) {
-  // Assert(new_state->ended_down != is_key_down);
+  Assert(new_state->ended_down != is_key_down);
   new_state->ended_down = is_key_down;
   ++new_state->half_transition_count;
 }
@@ -186,11 +154,13 @@ static inline float ProcessXInputStickPosition(SHORT raw_stick_value,
                                                SHORT deadzone) {
   float stick_value;
   if (raw_stick_value < -deadzone) {
-    stick_value = static_cast<float>(raw_stick_value) / 32768.0f;
+    stick_value =
+        static_cast<float>(raw_stick_value + deadzone) / (32768.0f - deadzone);
   } else if (raw_stick_value > deadzone) {
-    stick_value = static_cast<float>(raw_stick_value) / 32767.0f;
+    stick_value =
+        static_cast<float>(raw_stick_value + deadzone) / (32767.0f - deadzone);
   } else {
-    stick_value = 0;
+    stick_value = 0.0f;
   }
   return stick_value;
 }
@@ -208,9 +178,9 @@ void HandleGamepad(GameInput *old_input, GameInput *new_input) {
   for (int controller_idx = 0; controller_idx < max_controller_count;
        ++controller_idx) {
     ControllerInput *old_controller =
-        &old_input->controllers[controller_idx + 1];
+        GetController(old_input, controller_idx + 1);
     ControllerInput *new_controller =
-        &new_input->controllers[controller_idx + 1];
+        GetController(new_input, controller_idx + 1);
 
     old_controller->is_analog = true;
     new_controller->is_analog = true;
@@ -230,31 +200,40 @@ void HandleGamepad(GameInput *old_input, GameInput *new_input) {
     new_controller->stick_avg_y = ProcessXInputStickPosition(
         gamepad->sThumbLY, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE);
 
+    if (new_controller->stick_avg_x != 0.0f ||
+        new_controller->stick_avg_y != 0.0f) {
+      new_controller->is_analog = true;
+    }
+
     if (gamepad->wButtons & XINPUT_GAMEPAD_DPAD_UP) {
       new_controller->stick_avg_y = 1.0f;
+      new_controller->is_analog = false;
     }
     if (gamepad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN) {
       new_controller->stick_avg_y = -1.0f;
+      new_controller->is_analog = false;
     }
     if (gamepad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT) {
       new_controller->stick_avg_x = -1.0f;
+      new_controller->is_analog = false;
     }
     if (gamepad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT) {
       new_controller->stick_avg_x = 1.0f;
+      new_controller->is_analog = false;
     }
 
     float threshold = 0.5f;
     ProcessXInputDigitalButton(
-        &old_controller->move_left, &new_controller->move_left,
-        ((new_controller->stick_avg_x < -threshold) ? 1 : 0), 1);
-    ProcessXInputDigitalButton(
-        &old_controller->move_left, &new_controller->move_left,
+        &old_controller->move_up, &new_controller->move_up,
         ((new_controller->stick_avg_x > threshold) ? 1 : 0), 1);
     ProcessXInputDigitalButton(
-        &old_controller->move_left, &new_controller->move_left,
+        &old_controller->move_down, &new_controller->move_down,
         ((new_controller->stick_avg_x < -threshold) ? 1 : 0), 1);
     ProcessXInputDigitalButton(
         &old_controller->move_left, &new_controller->move_left,
+        ((new_controller->stick_avg_x < -threshold) ? 1 : 0), 1);
+    ProcessXInputDigitalButton(
+        &old_controller->move_right, &new_controller->move_right,
         ((new_controller->stick_avg_x > threshold) ? 1 : 0), 1);
 
     ProcessXInputDigitalButton(&old_controller->action_up,

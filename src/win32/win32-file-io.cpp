@@ -1,5 +1,7 @@
 #include "../../src/win32/win32-file-io.h"
 
+#include "../../src/handmade-hero/handmade-hero.h"
+
 FileResult ReadEntireFileDebug(wchar_t *file_path) {
   FileResult result = {};
 

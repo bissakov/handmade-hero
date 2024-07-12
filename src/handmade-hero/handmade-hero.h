@@ -2,7 +2,17 @@
 
 #include <cstdint>
 
+#include "../../src/win32/win32-handmade-hero.h"
+
 #define ArraySize(arr) (sizeof(arr) / sizeof((arr)[0]))
+#if DEBUG
+#define Assert(expression)              \
+  if (!static_cast<bool>(expression)) { \
+    __debugbreak();                     \
+  }
+#else
+#define Assert(expression)
+#endif
 
 #define Kilobytes(value) ((value) * 1024)
 #define Megabytes(value) (Kilobytes(value) * 1024)
@@ -52,7 +62,7 @@ struct ControllerInput {
   float stick_avg_y;
 
   union {
-    ButtonState buttons[14];
+    ButtonState buttons[12];
     struct {
       ButtonState move_up;
       ButtonState move_down;
@@ -77,9 +87,7 @@ struct GameInput {
   ControllerInput controllers[5];
 };
 
-inline ControllerInput *GetController(GameInput *input, int controller_idx) {
-  Assert(controller_idx < ArraySize(input->controllers));
-}
+ControllerInput *GetController(GameInput *input, int controller_idx);
 
 static inline void Render(GameBuffer *buffer, GameState *state);
 
