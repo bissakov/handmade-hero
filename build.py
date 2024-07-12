@@ -22,6 +22,13 @@ def create_compile_command(
 ) -> Iterable[str]:
     compile_command = ["cl"]
 
+    compile_command.extend(
+        [
+            "-D DEV=1",  # Development build
+            "-D DEBUG=1",  # Debug build
+        ]
+    )
+
     # Compiler behavior flags
     compile_command.extend(
         [
@@ -106,7 +113,7 @@ def main(
     command = command + " > nul 2>&1"
 
     # Prepare compilation command
-    output_name = output_name or "wib32_handmade_hero"
+    output_name = output_name or "win32_handmade_hero"
     compile_command = create_compile_command(
         output_name, additional_files, additional_libs
     )
