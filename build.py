@@ -1,18 +1,24 @@
 import argparse
 import os
 import subprocess
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Tuple
+
+from rich.console import Console
 
 
-def run_command(command: str) -> str:
+def run_command(command: str) -> Tuple[bool, str]:
+    result = ""
     process = subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
     )
     stdout, stderr = process.communicate()
     if process.returncode != 0:
-        print(f"Error executing command: {command}")
-        print(stderr.decode())
-    return stdout.decode()
+        result = f"[b red]Error[/b red] executing command: [i medium_purple1]{command}[/i medium_purple1]\n{stderr.decode()}"
+        return False, result
+
+    result = stdout.decode()
+
+    return True, result
 
 
 def create_compile_command(
@@ -99,7 +105,13 @@ def create_compile_command(
     return compile_command
 
 
-def main(
+def lint(console: Console) -> None:
+    _, output = run_command("cpplint --quiet --recursive .")
+    console.print(output)
+
+
+def build(
+    console: Console,
     arch: str,
     additional_files: Optional[Iterable[str]] = None,
     additional_libs: Optional[Iterable[str]] = None,
@@ -122,11 +134,14 @@ def main(
 
     # Change to build directory, run compilation, and return
     os.chdir("build")
-    print(run_command(command + " && " + " ".join(compile_command)))
+
+    _, output = run_command(command + " && " + " ".join(compile_command))
+    console.print(output)
+
     os.chdir("..")
 
 
-if __name__ == "__main__":
+def main() -> None:
     parser = argparse.ArgumentParser(description="Custom build script")
     parser.add_argument(
         "--arch",
@@ -145,4 +160,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(args.arch, args.files, args.libs, args.output)
+    console = Console()
+    lint(console)
+    build(console, args.arch, args.files, args.libs, args.output)
+
+
+if __name__ == "__main__":
+    main()
