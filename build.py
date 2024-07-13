@@ -13,11 +13,14 @@ def run_command(command: str) -> Tuple[bool, str]:
     )
     stdout, stderr = process.communicate()
     if process.returncode != 0:
-        result = f"[b red]Error[/b red] executing command: [i medium_purple1]{command}[/i medium_purple1]\n{stderr.decode()}"
+        result = f"[b red]Error[/b red] executing command: [i medium_purple1]{command}[/i medium_purple1]\n"
+        result += stderr.decode()
         return False, result
 
-    result = stdout.decode()
-
+    stdout_result = stdout.decode()
+    if stdout_result:
+        result = f"[b green]Result[/b green] of the execution: [i medium_purple1]{command}[/i medium_purple1]\n"
+        result += stdout_result
     return True, result
 
 
@@ -107,6 +110,8 @@ def create_compile_command(
 
 def lint(console: Console) -> None:
     _, output = run_command("cpplint --quiet --recursive .")
+    if not output:
+        return
     console.print(output)
 
 
@@ -136,6 +141,8 @@ def build(
     os.chdir("build")
 
     _, output = run_command(command + " && " + " ".join(compile_command))
+    if not output:
+        return
     console.print(output)
 
     os.chdir("..")
