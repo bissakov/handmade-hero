@@ -20,6 +20,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\handmade-hero\handmade-hero.cpp" />
+    <ClCompile Include="src\win32\win32-clock.cpp" />
+    <ClCompile Include="src\win32\win32-display.cpp" />
     <ClCompile Include="src\win32\win32-file-io.cpp" />
     <ClCompile Include="src\win32\win32-handmade-hero.cpp">
       <WarningLevel Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Level4</WarningLevel>
