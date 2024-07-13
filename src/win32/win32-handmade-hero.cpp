@@ -123,7 +123,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     return 1;
   }
 
-  int target_fps = (refresh_rate >= 60) ? 60 : refresh_rate;
+  int default_fps = 60;
+  int target_fps = (refresh_rate >= default_fps) ? default_fps : refresh_rate;
   float target_sec_per_frame = 1.0f / target_fps;
 
   SoundOutput sound_output;
@@ -258,23 +259,29 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
 
     LARGE_INTEGER work_counter = GetWallClock();
 
-    float elapsed_ms_per_frame_work =
-        GetSecondsElapsed(work_counter, last_counter, perf_count_frequency);
-    float elapsed_ms_per_frame = elapsed_ms_per_frame_work;
-    while (elapsed_ms_per_frame < target_sec_per_frame) {
-      elapsed_ms_per_frame =
-          GetSecondsElapsed(last_counter, GetWallClock(), perf_count_frequency);
+    float elapsed_sec_per_frame_work =
+        GetSecondsElapsed(last_counter, work_counter, perf_count_frequency);
+    float elapsed_sec_per_frame = elapsed_sec_per_frame_work;
+
+    if (elapsed_sec_per_frame > target_sec_per_frame) {
+      // missed frame
+    } else {
+      while (elapsed_sec_per_frame < target_sec_per_frame) {
+        work_counter = GetWallClock();
+        elapsed_sec_per_frame =
+            GetSecondsElapsed(last_counter, work_counter, perf_count_frequency);
+      }
     }
 
-    // float ms_per_frame = static_cast<float>(1000.0f * counter_elapsed) /
-    //                      static_cast<float>(perf_count_frequency);
-    // float fps = static_cast<float>(perf_count_frequency) / counter_elapsed;
-    //
-    // char debug_buffer[256];
-    // snprintf(debug_buffer, sizeof(debug_buffer),
-    //          "%.02f ms/f\t%.02f fps\t%.02fc/f\n", ms_per_frame, fps,
-    //          cycles_elapsed);
-    // OutputDebugStringA(debug_buffer);
+    float counters_elsaped = GetCountersElapsed(last_counter, work_counter);
+    float ms_per_frame = static_cast<float>(1000.0f * counters_elsaped) /
+                         static_cast<float>(perf_count_frequency);
+    float fps = static_cast<float>(perf_count_frequency) / counters_elsaped;
+
+    char debug_buffer[256];
+    snprintf(debug_buffer, sizeof(debug_buffer), "%.02f ms/f\t%.02f fps\n",
+             ms_per_frame, fps);
+    OutputDebugStringA(debug_buffer);
 
     work_counter = GetWallClock();
     last_counter = work_counter;

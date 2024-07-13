@@ -7,6 +7,7 @@
 
 LARGE_INTEGER GetWallClock();
 
+float GetCountersElapsed(LARGE_INTEGER start, LARGE_INTEGER end);
 float GetSecondsElapsed(LARGE_INTEGER start, LARGE_INTEGER end,
                         int64_t perf_count_frequency);
 

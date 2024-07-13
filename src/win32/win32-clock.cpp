@@ -8,9 +8,14 @@ LARGE_INTEGER GetWallClock() {
   return result;
 }
 
+float GetCountersElapsed(LARGE_INTEGER start, LARGE_INTEGER end) {
+  float result = static_cast<float>(end.QuadPart - start.QuadPart);
+  return result;
+}
+
 float GetSecondsElapsed(LARGE_INTEGER start, LARGE_INTEGER end,
                         int64_t perf_count_frequency) {
-  float result = static_cast<float>(end.QuadPart - start.QuadPart) /
-                 static_cast<float>(perf_count_frequency);
+  float counters_elapsed = GetCountersElapsed(start, end);
+  float result = counters_elapsed / static_cast<float>(perf_count_frequency);
   return result;
 }
