@@ -1,4 +1,5 @@
-#ifndef WIN32_CLOCK_H_
+#ifndef SRC_WIN32_WIN32_CLOCK_H_
+#define SRC_WIN32_WIN32_CLOCK_H_
 
 #include <windows.h>
 
@@ -9,5 +10,4 @@ LARGE_INTEGER GetWallClock();
 float GetSecondsElapsed(LARGE_INTEGER start, LARGE_INTEGER end,
                         int64_t perf_count_frequency);
 
-#define WIN32_CLOCK_H_
-#endif  // WIN32_CLOCK_H_
+#endif  // SRC_WIN32_WIN32_CLOCK_H_

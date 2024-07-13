@@ -1,10 +1,10 @@
+#ifndef SRC_WIN32_WIN32_INPUT_H_
+#define SRC_WIN32_WIN32_INPUT_H_
 
 #include <windows.h>
 #include <xinput.h>
 
 #include "../../src/handmade-hero/handmade-hero.h"
-
-#ifndef WIN32_INPUT_H_
 
 typedef DWORD WINAPI XInputGetStateT(DWORD controller_idx,
                                      XINPUT_STATE *controller_state);
@@ -27,5 +27,4 @@ static inline float ProcessXInputStickPosition(SHORT raw_stick_value,
 void HandleGamepad(GameInput *old_input, GameInput *new_input);
 void SwapInputs(GameInput *old_input, GameInput *new_input);
 
-#define WIN32_INPUT_H_
-#endif  // WIN32_INPUT_H_
+#endif  // SRC_WIN32_WIN32_INPUT_H_

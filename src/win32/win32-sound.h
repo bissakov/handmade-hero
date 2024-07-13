@@ -1,4 +1,5 @@
-#ifndef WIN32_SOUND_H_
+#ifndef SRC_WIN32_WIN32_SOUND_H_
+#define SRC_WIN32_WIN32_SOUND_H_
 
 #include <dsound.h>
 #include <windows.h>
@@ -28,5 +29,4 @@ bool FillSoundBuffer(IDirectSoundBuffer *sound_buffer,
                      uint32_t bytes_to_write,
                      GameSoundBuffer *game_sound_buffer);
 
-#define WIN32_SOUND_H_
-#endif  // WIN32_SOUND_H_
+#endif  // SRC_WIN32_WIN32_SOUND_H_

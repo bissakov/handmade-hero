@@ -1,4 +1,5 @@
-#ifndef WIN32_DISPLAY_H_
+#ifndef SRC_WIN32_WIN32_DISPLAY_H_
+#define SRC_WIN32_WIN32_DISPLAY_H_
 
 #include <windows.h>
 
@@ -23,5 +24,4 @@ void ResizeDIBSection(Buffer *buffer, int width, int height);
 void DisplayBuffer(HDC device_context, int window_x, int window_y,
                    int window_width, int window_height, Buffer *buffer);
 
-#define WIN32_DISPLAY_H_
-#endif  // WIN32_DISPLAY_H_
+#endif  // SRC_WIN32_WIN32_DISPLAY_H_

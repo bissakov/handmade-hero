@@ -1,4 +1,5 @@
-#ifndef WIN32_HANDMADE_HERO_H_
+#ifndef SRC_WIN32_WIN32_HANDMADE_HERO_H_
+#define SRC_WIN32_WIN32_HANDMADE_HERO_H_
 
 #include <dsound.h>
 #include <windows.h>
@@ -27,5 +28,4 @@ static inline LRESULT CALLBACK MainWindowCallback(HWND window, UINT message,
                                                   WPARAM w_param,
                                                   LPARAM l_param);
 
-#define WIN32_HANDMADE_HERO_H_
-#endif  // WIN32_HANDMADE_HERO_H_
+#endif  // SRC_WIN32_WIN32_HANDMADE_HERO_H_

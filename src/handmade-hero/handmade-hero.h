@@ -1,4 +1,5 @@
-#ifndef HANDMADE_HERO_H_
+#ifndef SRC_HANDMADE_HERO_HANDMADE_HERO_H_
+#define SRC_HANDMADE_HERO_HANDMADE_HERO_H_
 
 #include <cstdint>
 
@@ -97,5 +98,4 @@ static inline void OutputGameSound(GameSoundBuffer *sound_buffer,
 void UpdateAndRender(GameMemory *memory, GameBuffer *buffer,
                      GameSoundBuffer *sound_buffer, GameInput *input);
 
-#define HANDMADE_HERO_H_
-#endif  // HANDMADE_HERO_H_
+#endif  // SRC_HANDMADE_HERO_HANDMADE_HERO_H_
