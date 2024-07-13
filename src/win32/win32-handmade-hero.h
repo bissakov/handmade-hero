@@ -6,6 +6,8 @@
 
 #include <cstdint>
 
+#include "../../src/win32/win32-display.h"
+
 #ifndef DEV
 #define DEV 1
 #endif
@@ -14,26 +16,13 @@
 #define DEBUG 1
 #endif
 
-struct Buffer {
-  BITMAPINFO info;
-  void *memory;
-  int width;
-  int height;
-  int pitch;
-  int bytes_per_pixel;
-};
+static bool RUNNING = true;
+static const int DEFAULT_WIDTH = 1920;
+static const int DEFAULT_HEIGHT = 1080;
 
-struct Dimensions {
-  int width;
-  int height;
-};
+static Buffer BUFFER;
+static int64_t perf_count_frequency;
 
-static inline Dimensions GetDimensions(HWND window);
-
-static inline void ResizeDIBSection(Buffer *buffer, int width, int height);
-static inline void DisplayBuffer(HDC device_context, int window_x, int window_y,
-                                 uint16_t window_width, uint16_t window_height,
-                                 Buffer *buffer);
 static inline LRESULT CALLBACK MainWindowCallback(HWND window, UINT message,
                                                   WPARAM w_param,
                                                   LPARAM l_param);

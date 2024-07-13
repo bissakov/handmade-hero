@@ -70,6 +70,8 @@ def create_compile_command(
             "../src/win32/win32-input.cpp",  # Win32 input handling
             "../src/win32/win32-file-io.cpp",  # Win32 file I/O
             "../src/win32/win32-sound.cpp",  # Win32 sound handling
+            "../src/win32/win32-clock.cpp",  # Win32 clock handling
+            "../src/win32/win32-display.cpp",  # Win32 display handling
             "../src/handmade-hero/handmade-hero.cpp",  # Game code
         ]
     )

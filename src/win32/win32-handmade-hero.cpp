@@ -11,57 +11,11 @@
 #include <cstdio>
 
 #include "../../src/handmade-hero/handmade-hero.h"
+#include "../../src/win32/win32-clock.h"
+#include "../../src/win32/win32-display.h"
 #include "../../src/win32/win32-file-io.h"
 #include "../../src/win32/win32-input.h"
 #include "../../src/win32/win32-sound.h"
-
-static bool RUNNING = true;
-static const int DEFAULT_WIDTH = 1920;
-static const int DEFAULT_HEIGHT = 1080;
-
-static Buffer BUFFER;
-
-static inline Dimensions GetDimensions(HWND window) {
-  RECT rect;
-  GetClientRect(window, &rect);
-  int width = rect.right - rect.left;
-  int height = rect.bottom - rect.top;
-  return {width, height};
-}
-
-static inline void ResizeDIBSection(Buffer *buffer, int width, int height) {
-  if (buffer->memory) {
-    VirtualFree(buffer->memory, 0, MEM_RELEASE);
-  }
-
-  buffer->width = width;
-  buffer->height = height;
-  buffer->bytes_per_pixel = 4;
-
-  Assert(buffer->width && buffer->height && buffer->bytes_per_pixel);
-
-  buffer->info.bmiHeader.biSize = sizeof(buffer->info.bmiHeader);
-  buffer->info.bmiHeader.biWidth = buffer->width;
-  buffer->info.bmiHeader.biHeight = buffer->height * -1;
-  buffer->info.bmiHeader.biPlanes = 1;
-  buffer->info.bmiHeader.biBitCount = 32;
-  buffer->info.bmiHeader.biCompression = BI_RGB;
-
-  int bitmap_memory_size =
-      buffer->width * buffer->height * buffer->bytes_per_pixel;
-  buffer->memory = VirtualAlloc(0, bitmap_memory_size, MEM_RESERVE | MEM_COMMIT,
-                                PAGE_READWRITE);
-
-  buffer->pitch = buffer->width * buffer->bytes_per_pixel;
-}
-
-static inline void DisplayBuffer(HDC device_context, int window_x, int window_y,
-                                 int window_width, int window_height,
-                                 Buffer *buffer) {
-  StretchDIBits(device_context, window_x, window_y, window_width, window_height,
-                0, 0, buffer->width, buffer->height, buffer->memory,
-                &buffer->info, DIB_RGB_COLORS, SRCCOPY);
-}
 
 static inline LRESULT CALLBACK MainWindowCallback(HWND window, UINT message,
                                                   WPARAM w_param,
@@ -127,6 +81,10 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   }
 #endif
 
+  LARGE_INTEGER perf_count_frequency_result;
+  QueryPerformanceFrequency(&perf_count_frequency_result);
+  perf_count_frequency = perf_count_frequency_result.QuadPart;
+
   if (!InitXInput()) {
     OutputDebugStringW(L"XInput initialization failed\n");
     return ERROR_DEVICE_NOT_CONNECTED;
@@ -158,6 +116,15 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   }
 
   HDC device_context = GetDC(window);
+
+  int refresh_rate = GetDeviceCaps(device_context, VREFRESH);
+  if (refresh_rate == 0) {
+    OutputDebugStringW(L"Failed to get the refresh rate\n");
+    return 1;
+  }
+
+  int target_fps = (refresh_rate >= 60) ? 60 : refresh_rate;
+  float target_sec_per_frame = 1.0f / target_fps;
 
   SoundOutput sound_output;
   sound_output.secondary_buffer_size =
@@ -218,14 +185,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   GameInput old_input = {};
   GameInput new_input = {};
 
-  // LARGE_INTEGER perf_count_frequency_result;
-  // QueryPerformanceFrequency(&perf_count_frequency_result);
-  // int64_t perf_count_frequency = perf_count_frequency_result.QuadPart;
-  //
-  // LARGE_INTEGER last_counter;
-  // QueryPerformanceCounter(&last_counter);
-  //
-  // uint64_t last_cycle_count = __rdtsc();
+  LARGE_INTEGER last_counter = GetWallClock();
+  uint64_t last_cycle_count = __rdtsc();
 
   while (RUNNING) {
     ControllerInput *old_keyboard_controller = GetController(&old_input, 0);
@@ -295,26 +256,34 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     DisplayBuffer(device_context, 0, 0, window_dimensions.width,
                   window_dimensions.height, &BUFFER);
 
-    // uint64_t end_cycle_count = __rdtsc();
-    //
-    // LARGE_INTEGER end_counter;
-    // QueryPerformanceCounter(&end_counter);
-    //
-    // float megacycles_elapsed =
-    //     static_cast<float>((end_cycle_count - last_cycle_count) /
-    //     1'000'000.0f);
-    // uint64_t counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
-    // float ms_per_frame =
-    //     static_cast<float>(1000.0f * counter_elapsed) / perf_count_frequency;
+    LARGE_INTEGER work_counter = GetWallClock();
+
+    float elapsed_ms_per_frame_work =
+        GetSecondsElapsed(work_counter, last_counter, perf_count_frequency);
+    float elapsed_ms_per_frame = elapsed_ms_per_frame_work;
+    while (elapsed_ms_per_frame < target_sec_per_frame) {
+      elapsed_ms_per_frame =
+          GetSecondsElapsed(last_counter, GetWallClock(), perf_count_frequency);
+    }
+
+    // float ms_per_frame = static_cast<float>(1000.0f * counter_elapsed) /
+    //                      static_cast<float>(perf_count_frequency);
     // float fps = static_cast<float>(perf_count_frequency) / counter_elapsed;
     //
-    // char buffer[256];
-    // snprintf(buffer, sizeof(buffer), "%.02f ms/f\t%.02f fps\t%.02fmc/f\n",
-    //          ms_per_frame, fps, megacycles_elapsed);
-    // OutputDebugStringA(buffer);
-    //
-    // last_counter = end_counter;
-    // last_cycle_count = end_cycle_count;
+    // char debug_buffer[256];
+    // snprintf(debug_buffer, sizeof(debug_buffer),
+    //          "%.02f ms/f\t%.02f fps\t%.02fc/f\n", ms_per_frame, fps,
+    //          cycles_elapsed);
+    // OutputDebugStringA(debug_buffer);
+
+    work_counter = GetWallClock();
+    last_counter = work_counter;
+
+    uint64_t end_cycle_count = __rdtsc();
+    // float cycles_elapsed =
+    //     static_cast<float>((end_cycle_count - last_cycle_count) /
+    //     1'000'000.0f);
+    last_cycle_count = end_cycle_count;
   }
 
   ReleaseDC(window, device_context);
