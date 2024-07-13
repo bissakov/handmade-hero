@@ -55,6 +55,7 @@ def create_compile_command(
     compile_command.extend(
         [
             "-W4",  # Set warning level to 4 (highest)
+            "-WX",  # Treat warnings as errors
             "-wd4201",  # Disable warning 4201 (nonstandard extension used: nameless struct/union)
             "-wd4127",  # Disable warning 4127 (conditional expression is constant)
             "-wd4100",  # Disable warning 4100 (unreferenced formal parameter)
