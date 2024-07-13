@@ -12,14 +12,17 @@ def run_command(command: str) -> Tuple[bool, str]:
         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True
     )
     stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        result = f"[b red]Error[/b red] executing command: [i medium_purple1]{command}[/i medium_purple1]\n"
-        result += stderr.decode()
-        return False, result
 
     stdout_result = stdout.decode()
+    stderr_result = stderr.decode()
+
+    if stderr_result:
+        result = "[b red]Error:[/b red]\n"
+        result += stderr_result
+        return False, result
+
     if stdout_result:
-        result = f"[b green]Result[/b green] of the execution: [i medium_purple1]{command}[/i medium_purple1]\n"
+        result = result or "[b green]Build result:[/b green]\n"
         result += stdout_result
     return True, result
 
