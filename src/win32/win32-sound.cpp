@@ -60,7 +60,7 @@ IDirectSoundBuffer *InitDirectSound(HWND window, int samples_per_second,
   {
     DSBUFFERDESC buffer_desc = {};
     buffer_desc.dwSize = sizeof(buffer_desc);
-    buffer_desc.dwFlags = 0;
+    buffer_desc.dwFlags = DSBCAPS_GETCURRENTPOSITION2;
     buffer_desc.dwBufferBytes = buffer_size;
     buffer_desc.lpwfxFormat = &wave_format;
     if (!SUCCEEDED(
