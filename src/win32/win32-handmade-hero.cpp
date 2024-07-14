@@ -63,6 +63,36 @@ static inline LRESULT CALLBACK MainWindowCallback(HWND window, UINT message,
   return result;
 }
 
+HWND GetWindow(HINSTANCE instance) {
+  HWND window = {};
+
+  WNDCLASSW window_class = {};
+
+  window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+  window_class.lpfnWndProc = MainWindowCallback;
+  window_class.hInstance = instance;
+  window_class.lpszClassName = L"HandmadeHeroWindowClass";
+
+  if (!RegisterClassW(&window_class)) {
+    OutputDebugStringW(L"Window class registration failed\n");
+    return NULL;
+  }
+
+  wchar_t window_name[] = L"Handmade Hero";
+  uint32_t window_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+
+  window = CreateWindowExW(0, window_class.lpszClassName, window_name,
+                           window_style, CW_USEDEFAULT, CW_USEDEFAULT,
+                           CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, 0);
+
+  if (!window) {
+    OutputDebugStringW(L"Window creation failed\n");
+    return NULL;
+  }
+
+  return window;
+}
+
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
                      LPSTR command_line, int show_code) {
 #if 0
@@ -91,27 +121,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   }
   ResizeDIBSection(&BUFFER, DEFAULT_WIDTH, DEFAULT_HEIGHT);
 
-  WNDCLASSW window_class = {};
-
-  window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
-  window_class.lpfnWndProc = MainWindowCallback;
-  window_class.hInstance = instance;
-  window_class.lpszClassName = L"HandmadeHeroWindowClass";
-
-  if (!RegisterClassW(&window_class)) {
-    OutputDebugStringW(L"Window class registration failed\n");
-    return 1;
-  }
-
-  wchar_t window_name[] = L"Handmade Hero";
-  uint32_t window_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
-
-  HWND window = CreateWindowExW(
-      0, window_class.lpszClassName, window_name, window_style, CW_USEDEFAULT,
-      CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, 0);
-
+  HWND window = GetWindow(instance);
   if (!window) {
-    OutputDebugStringW(L"Window creation failed\n");
     return 1;
   }
 
