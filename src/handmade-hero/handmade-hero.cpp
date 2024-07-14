@@ -17,10 +17,12 @@ static void Render(GameBuffer *buffer, GameState *state) {
   for (int y = 0; y < buffer->height; ++y) {
     uint32_t *pixel = reinterpret_cast<uint32_t *>(row);
     for (int x = 0; x < buffer->width; ++x) {
-      uint8_t red = static_cast<uint8_t>(x + state->x_offset);
-      uint8_t green = 0;
-      uint8_t blue = static_cast<uint8_t>(y + state->y_offset);
-      *pixel++ = (red << 16) | (green << 8) | blue;
+      // uint8_t red = static_cast<uint8_t>(x + state->x_offset);
+      // uint8_t green = 0;
+      // uint8_t blue = static_cast<uint8_t>(y + state->y_offset);
+      // *pixel++ = (red << 16) | (green << 8) | blue;
+
+      *pixel++ = (uint32_t)(0);
     }
     row += buffer->pitch;
   }
