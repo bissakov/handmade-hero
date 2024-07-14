@@ -95,6 +95,7 @@ def create_compile_command(
             "user32.lib",  # User interface
             "gdi32.lib",  # Graphics device interface
             "xinput.lib",  # XInput controller support
+            "winmm.lib",  # Windows multimedia
         ]
     )
 
