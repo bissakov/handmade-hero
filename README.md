@@ -9,6 +9,9 @@ Project can be potentially built and/or ran on the older platforms. WIP.
 - Windows 10/11 32-bit or 64-bit
 - Visual Studio Build Tools 2022
 - Visual Studio Community 2022
+- Have the `vcvarsall.bat` in your PATH. Possible file paths:
+  - `path/to/Microsoft Visual Studio/<version>/Community/VC/Auxiliary/Build/vcvarsall.bat`
+  - `path/to/Microsoft Visual Studio/<version>/BuildTools/VC/Auxiliary/Build/vcvarsall.bat`
 - Python 3.6+
     - Rich (for colorized output). Install with `pip install rich`
     - cpplint (for code style checking). Install with `pip install cpplint`
@@ -27,6 +30,9 @@ python -m pip install rich cpplint clang-format
 
 # Build the project for x86 or x64 (default is x64)
 python build.py --arch x64
+
+# Or directly using build.bat script
+./build.bat x64
 
 # Run the project
 ./build/win32-handmade-hero.exe
