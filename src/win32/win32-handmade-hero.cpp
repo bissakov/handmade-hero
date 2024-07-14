@@ -17,6 +17,62 @@
 #include "../../src/win32/win32-input.h"
 #include "../../src/win32/win32-sound.h"
 
+void DebugDrawVertical(Buffer *buffer, int x, int top, int bottom,
+                       uint32_t color) {
+  uint8_t *pixel = reinterpret_cast<uint8_t *>(buffer->memory) +
+                   (x * buffer->bytes_per_pixel) + (top * buffer->pitch);
+  for (int y = top; y < bottom; ++y) {
+    *reinterpret_cast<uint32_t *>(pixel) = color;
+    pixel += buffer->pitch;
+  }
+}
+
+void DebugDrawSoundBufferMarker(DWORD marker, uint32_t color,
+                                SoundOutput *sound_output, Buffer *buffer,
+                                float c, int pad_x, int top, int bottom) {
+  Assert(static_cast<int>(marker) < sound_output->secondary_buffer_size);
+
+  float x = c * static_cast<float>(marker);
+  int x_padded = static_cast<int>(x) + pad_x;
+  DebugDrawVertical(buffer, x_padded, top, bottom, color);
+}
+
+void DebugSyncDisplay(Buffer *buffer, int marker_count,
+                      DebugTimeMarker *markers, SoundOutput *sound_output,
+                      float target_sec_per_frame) {
+  int pad_x = 16;
+  int pad_y = 16;
+  int top = pad_y;
+  int bottom = buffer->height - pad_y;
+
+  float c = static_cast<float>(buffer->width - (2 * pad_x)) /
+            static_cast<float>(sound_output->secondary_buffer_size);
+  for (int i = 0; i < marker_count; ++i) {
+    DebugTimeMarker *current_marker = &markers[i];
+    DebugDrawSoundBufferMarker(current_marker->play_cursor, 0xFFFFFFFF,
+                               sound_output, buffer, c, pad_x, top, bottom);
+    DebugDrawSoundBufferMarker(current_marker->write_cursor, 0xFFFF0000,
+                               sound_output, buffer, c, pad_x, top, bottom);
+  }
+}
+
+bool NanoSleep(int64_t ns) {
+  HANDLE timer = CreateWaitableTimer(NULL, TRUE, NULL);
+  if (!timer) {
+    return false;
+  }
+
+  LARGE_INTEGER li = {};
+  li.QuadPart = -ns;
+  if (!SetWaitableTimer(timer, &li, 0, NULL, NULL, FALSE)) {
+    CloseHandle(timer);
+    return false;
+  }
+  WaitForSingleObject(timer, INFINITE);
+  CloseHandle(timer);
+  return false;
+}
+
 static inline LRESULT CALLBACK MainWindowCallback(HWND window, UINT message,
                                                   WPARAM w_param,
                                                   LPARAM l_param) {
@@ -134,14 +190,16 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
     return 1;
   }
 
-  int default_fps = 60;
+  int default_fps = 30;
   int target_fps = (refresh_rate >= default_fps) ? default_fps : refresh_rate;
-  float target_sec_per_frame = 1.0f / target_fps;
+  float target_sec_per_frame = 1.0f / static_cast<float>(target_fps);
+  int audio_latency_frames = 4;
 
   SoundOutput sound_output;
   sound_output.secondary_buffer_size =
       sound_output.samples_per_second * sound_output.bytes_per_sample;
-  sound_output.latency_sample_count = sound_output.samples_per_second / 15;
+  sound_output.latency_sample_count =
+      audio_latency_frames * sound_output.samples_per_second / target_fps;
 
   IDirectSoundBuffer *sound_buffer =
       InitDirectSound(window, sound_output.samples_per_second,
@@ -198,6 +256,16 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
   GameInput new_input = {};
 
   LARGE_INTEGER last_counter = GetWallClock();
+  int debug_marker_idx = 0;
+  DebugTimeMarker debug_markers[15] = {};
+
+  DWORD last_play_cursor = 0;
+  bool is_sound_valid = false;
+
+#if DEBUG
+  char debug_buffer[256];
+#endif
+
   uint64_t last_cycle_count = __rdtsc();
 
   while (RUNNING) {
@@ -220,17 +288,13 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
 
     DWORD byte_to_lock = 0;
     DWORD target_cursor = 0;
-    DWORD play_cursor = 0;
     DWORD bytes_to_write = 0;
-    DWORD write_cursor;
-    bool sound_is_valid = false;
-    if (SUCCEEDED(
-            sound_buffer->GetCurrentPosition(&play_cursor, &write_cursor))) {
+    if (is_sound_valid) {
       byte_to_lock =
           (sound_output.running_sample_idx * sound_output.bytes_per_sample) %
           sound_output.secondary_buffer_size;
-      target_cursor = (play_cursor + (sound_output.latency_sample_count *
-                                      sound_output.bytes_per_sample)) %
+      target_cursor = (last_play_cursor + (sound_output.latency_sample_count *
+                                           sound_output.bytes_per_sample)) %
                       sound_output.secondary_buffer_size;
       bytes_to_write = 0;
 
@@ -241,7 +305,6 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
       } else {
         bytes_to_write = target_cursor - byte_to_lock;
       }
-      sound_is_valid = true;
     }
 
     GameBuffer game_buffer = {};
@@ -259,48 +322,115 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance,
 
     UpdateAndRender(&memory, &game_buffer, &game_sound_buffer, &new_input);
 
-    if (sound_is_valid) {
+    if (is_sound_valid) {
       FillSoundBuffer(sound_buffer, &sound_output, byte_to_lock, bytes_to_write,
                       &game_sound_buffer);
     }
 
+    LARGE_INTEGER work_counter = GetWallClock();
+    float elapsed_sec_per_frame_work =
+        GetSecondsElapsed(last_counter, work_counter, perf_count_frequency);
+
+    float elapsed_sec_per_frame = elapsed_sec_per_frame_work;
+
+    if (elapsed_sec_per_frame < target_sec_per_frame) {
+      DWORD sleep_ms =
+          (DWORD)(1000.0f * (target_sec_per_frame - elapsed_sec_per_frame));
+      if (sleep_ms > 0) {
+        NanoSleep(sleep_ms);
+      }
+
+      float test_elapsed_sec_for_frame =
+          GetSecondsElapsed(last_counter, GetWallClock(), perf_count_frequency);
+      Assert(test_elapsed_sec_for_frame < target_sec_per_frame);
+
+      while (elapsed_sec_per_frame < target_sec_per_frame) {
+        elapsed_sec_per_frame = GetSecondsElapsed(last_counter, GetWallClock(),
+                                                  perf_count_frequency);
+      }
+    } else {
+      // missed frame
+    }
+
+    LARGE_INTEGER end_counter = GetWallClock();
+    float ms_per_frame = 1000.0f * GetSecondsElapsed(last_counter, end_counter,
+                                                     perf_count_frequency);
+    last_counter = end_counter;
+
     Dimensions window_dimensions = GetDimensions(window);
+
+#if DEV
+    DebugSyncDisplay(&BUFFER, ArraySize(debug_markers), debug_markers,
+                     &sound_output, target_sec_per_frame);
+#endif
+
     DisplayBuffer(device_context, 0, 0, window_dimensions.width,
                   window_dimensions.height, &BUFFER);
 
-    LARGE_INTEGER work_counter = GetWallClock();
+    DWORD play_cursor;
+    DWORD write_cursor;
+    if (SUCCEEDED(
+            sound_buffer->GetCurrentPosition(&play_cursor, &write_cursor))) {
+      last_play_cursor = play_cursor;
 
-    float elapsed_sec_per_frame_work =
-        GetSecondsElapsed(last_counter, work_counter, perf_count_frequency);
-    float elapsed_sec_per_frame = elapsed_sec_per_frame_work;
-
-    if (elapsed_sec_per_frame > target_sec_per_frame) {
-      // missed frame
-    } else {
-      while (elapsed_sec_per_frame < target_sec_per_frame) {
-        work_counter = GetWallClock();
-        elapsed_sec_per_frame =
-            GetSecondsElapsed(last_counter, work_counter, perf_count_frequency);
+      if (!is_sound_valid) {
+        sound_output.running_sample_idx =
+            write_cursor / sound_output.bytes_per_sample;
+        is_sound_valid = true;
       }
+    } else {
+      is_sound_valid = false;
     }
 
-    float counters_elsaped = GetCountersElapsed(last_counter, work_counter);
-    float ms_per_frame = static_cast<float>(1000.0f * counters_elsaped) /
-                         static_cast<float>(perf_count_frequency);
-    float fps = static_cast<float>(perf_count_frequency) / counters_elsaped;
+#if 0
+    // 1920 jump, 480 sample
+    {
+      while (RUNNING) {
+        DWORD play_cursor;
+        DWORD write_cursor;
+        sound_buffer->GetCurrentPosition(&play_cursor, &write_cursor);
 
-    char debug_buffer[256];
-    snprintf(debug_buffer, sizeof(debug_buffer), "%.02f ms/f\t%.02f fps\n",
-             ms_per_frame, fps);
-    OutputDebugStringA(debug_buffer);
+        snprintf(debug_buffer, sizeof(debug_buffer),
+                 "play_cursor: %lu, write_cursor: %lu\n", play_cursor,
+                 write_cursor);
+        OutputDebugStringA(debug_buffer);
+      }
+    }
+#endif
 
-    work_counter = GetWallClock();
-    last_counter = work_counter;
+#if DEBUG
+    {
+      snprintf(debug_buffer, sizeof(debug_buffer),
+               "last_play_cursor: %lu, byte_to_lock: %lu, target_cursor: "
+               "%lu, bytes_to_write: %lu\n",
+               last_play_cursor, byte_to_lock, target_cursor, bytes_to_write);
+      OutputDebugStringA(debug_buffer);
+    }
+#endif
+
+#if DEV
+    {
+      DebugTimeMarker *debug_marker = &debug_markers[debug_marker_idx++];
+      if (debug_marker_idx >= ArraySize(debug_markers)) {
+        debug_marker_idx = 0;
+      }
+      debug_marker->play_cursor = play_cursor;
+      debug_marker->write_cursor = write_cursor;
+    }
+#endif
+
+    float fps = 1000.0f / ms_per_frame;
+
+#if DEBUG
+    {
+      snprintf(debug_buffer, sizeof(debug_buffer), "%.02f ms/f\t%.02f fps\n",
+               ms_per_frame, fps);
+      OutputDebugStringA(debug_buffer);
+    }
+#endif
 
     uint64_t end_cycle_count = __rdtsc();
-    // float cycles_elapsed =
-    //     static_cast<float>((end_cycle_count - last_cycle_count) /
-    //     1'000'000.0f);
+    // int64_t cycles_elapsed = end_cycle_count - last_cycle_count;
     last_cycle_count = end_cycle_count;
   }
 

@@ -1,7 +1,6 @@
 #ifndef SRC_WIN32_WIN32_HANDMADE_HERO_H_
 #define SRC_WIN32_WIN32_HANDMADE_HERO_H_
 
-#include <dsound.h>
 #include <windows.h>
 #include <xinput.h>
 
@@ -16,6 +15,11 @@
 #ifndef DEBUG
 #define DEBUG 1
 #endif
+
+struct DebugTimeMarker {
+  DWORD play_cursor;
+  DWORD write_cursor;
+};
 
 static bool RUNNING = true;
 static const int DEFAULT_WIDTH = 1920;
