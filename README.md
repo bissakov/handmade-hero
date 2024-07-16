@@ -28,10 +28,13 @@ cd handmade-hero
 # Prerequisites
 python -m pip install rich cpplint clang-format
 
-# Build the project for x86 or x64 (default is x64)
+# Build using CMake
+cmake --build .\build\
+
+# Or using Python for x86 or x64 (default is x64)
 python build.py --arch x64
 
-# Or directly using build.bat script
+# Or using build.bat script
 ./build.bat x64
 
 # Run the project
